@@ -70,19 +70,9 @@ void init(void);
 // Default source address and pan id, eventually will get them from program memory
 // For now, you need to replace these values with the appropriate ones for your
 // project.  These can be changed from python now.
-// RSF working address 9/2011
 #define SRC_ADDR	    0x2051
 #define SRC_PAN_ID	    0x2050
 #define MY_CHAN             0x19
-
-//Motile Release
-//#define SRC_ADDR	    0x3001
-//#define SRC_PAN_ID	    0x3000
-//#define MY_CHAN             0x0e
-
-//#define SRC_ADDR	    0x2000
-//#define SRC_PAN_ID	    0x2000
-//#define MY_CHAN             0x16
 
 
 #define LED_RED             LED_0
@@ -96,7 +86,7 @@ int main(void) {
     while(1) {
         if (!radioIsRxQueueEmpty())
         {
-            xbeeHandleRx();
+            xbeeHandleRx(radioDequeueRxPacket());
             LED_BLU = ~LED_BLU;
         }
         if (!radioIsTxQueueEmpty())
@@ -131,10 +121,11 @@ void init(void)
     }
 
     SetupUART1();
+	xbSetupDma();
     SetupInterrupts();
     EnableIntU1TX;
     EnableIntU1RX;
-    radioInit(src_addr, src_pan_id, 32, 32);
+    radioInit(src_addr, src_pan_id, 16, 16);
     radioSetChannel(MY_CHAN); //Set to my channel
 
     //Set this if the electronics for Ant diversity are installed
