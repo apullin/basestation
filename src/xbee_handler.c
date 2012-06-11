@@ -62,7 +62,7 @@
 //#include "lcd.h"
 
 /////////////////////////////////////////////////////////////////
-#define FCY                     40000000
+//#define FCY                     40000000
 #define BAUDRATE                230400  //921600    
 #define BRGVAL4                 ((FCY/BAUDRATE)/4)-1
 #define BRGVAL16                ((FCY/BAUDRATE)/16)-1
@@ -107,7 +107,7 @@ void xbSetupDma(void) {
         DMA6REQ = 0x001F;       //  select UART2 transmitter
         DMA6PAD = (volatile unsigned int) &U2TXREG;
     #else
-        #error "UART/DMA is not defined on this project
+        #error "UART/DMA is not defined on this project"
     #endif
 
 

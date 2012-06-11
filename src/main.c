@@ -74,6 +74,8 @@ void init(void);
 #define SRC_PAN_ID	    0x2050
 #define MY_CHAN             0x19
 
+#define RXPQ_MAX_SIZE 	32
+#define TXPQ_MAX_SIZE	32
 
 #define LED_RED             LED_0
 #define LED_YLW1            LED_1
@@ -125,7 +127,7 @@ void init(void)
     SetupInterrupts();
     EnableIntU1TX;
     EnableIntU1RX;
-    radioInit(src_addr, src_pan_id, 16, 16);
+    radioInit(src_addr, src_pan_id, RXPQ_MAX_SIZE, TXPQ_MAX_SIZE);
     radioSetChannel(MY_CHAN); //Set to my channel
 
     //Set this if the electronics for Ant diversity are installed
