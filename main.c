@@ -134,7 +134,7 @@ void init(void)
     SetupInterrupts();
     EnableIntU1TX;
     EnableIntU1RX;
-    radioInit(src_addr, src_pan_id, 32, 32);
+    radioInit(src_addr, src_pan_id, 150, 150);
     radioSetChannel(MY_CHAN); //Set to my channel
 
     //Set this if the electronics for Ant diversity are installed
