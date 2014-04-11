@@ -59,6 +59,7 @@
 #define AT_COMMAND_MODE     0x08
 #define TX_16BIT            0x01
 
+
 //Position of bytes in a TX_16BIT packet
 #define RX_START_POS        0
 #define LEN_HB_POS          1
@@ -68,6 +69,7 @@
 #define DEST_ADDR_HB_POS    5
 #define DEST_ADDR_LB_POS    6
 #define OPTION_POS          7
+
 
 //These are various parameters of the xbee
 #define AT_CHANNEL          0x4348  //CH

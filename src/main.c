@@ -77,10 +77,8 @@ void init(void);
 //#define SRC_PAN_ID	    0x3000
 //#define MY_CHAN             0x0e
 
-//#define SRC_ADDR	    0x2000
-//#define SRC_PAN_ID	    0x2000
-//#define MY_CHAN             0x16
-
+#define RXPQ_MAX_SIZE 	32
+#define TXPQ_MAX_SIZE	32
 
 #define RADIO_TXPQ_MAX_SIZE 40
 #define RADIO_RXPQ_MAX_SIZE 40
@@ -153,6 +151,7 @@ void init(void) {
     }
 
     SetupUART1();
+	xbSetupDma();
     SetupInterrupts();
     EnableIntU1TX;
     EnableIntU1RX;

@@ -74,12 +74,11 @@ void xbeeHandleTx(Payload rx_pld);
 * Function Name : xbeeHandleRx
 * Description   : Retrieve a packet from the radio, put it in the correct format
 *                 and pass it along the UART
-* Parameters    : None, this is called when the radio puts a packet in the
-*                 receive queue
+* Parameters    : 
 * Return Value  : None
 *******************************************************************************/
-void xbeeHandleRx(void);
-
+//void xbeeHandleRx(void);
+void xbeeHandleRx(MacPacket packet);
 
 
 /******************************************************************************
@@ -107,6 +106,6 @@ void xbeeHandleATR(unsigned char frame_id, WordVal command, unsigned char *data,
 *******************************************************************************/
 void sendUART(unsigned char *frame_header, unsigned char *data, unsigned char length);
 
-
+void xbSetupDma(void);
 
 #endif
