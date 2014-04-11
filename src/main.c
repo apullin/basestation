@@ -59,36 +59,9 @@
 #include <stdio.h>
 #include "xbee_constants.h"
 #include "xbee_handler.h"
-#include "led.h"
+#include "settings.h"
 
 void init(void);
-
-// Default source address and pan id, eventually will get them from program memory
-// For now, you need to replace these values with the appropriate ones for your
-// project.  These can be changed from python now.
-// RSF working address 9/2011
-/////// Radio settings ///////
-#define RADIO_CHANNEL		0x19
-#define RADIO_SRC_ADDR 		0x2052
-#define RADIO_PAN_ID            0x2050
-
-//Motile Release
-//#define SRC_ADDR	    0x3001
-//#define SRC_PAN_ID	    0x3000
-//#define MY_CHAN             0x0e
-
-#define RXPQ_MAX_SIZE 	32
-#define TXPQ_MAX_SIZE	32
-
-#define RADIO_TXPQ_MAX_SIZE 40
-#define RADIO_RXPQ_MAX_SIZE 40
-
-#define ANTENNA_DIVERSITY 0
-
-#define LED_RED             LED_0
-#define LED_YLW1            LED_1
-#define LED_YLW2            LED_2
-#define LED_BLU             LED_3
 
 int main(void) {
     init();
@@ -101,9 +74,16 @@ int main(void) {
 
         //Packet into from radio, send to UART
         if (!radioRxQueueEmpty()) {
-            xbeeHandleRx();
-            LED_BLU ^= 1;
+            if ((packet = radioDequeueRxPacket()) != NULL) {
+                pld = macGetPayload(packet);
+                status = payGetStatus(pld);
+                command = payGetType(pld);
+                xbeeHandleRx(pld);
+                LED_BLU ^= 1;
+                radioReturnPacket(packet);
+            }    
         }
+
         //Packet from UART, to be sent over raido
         if (!radioTxQueueEmpty()) {
             xbeeHandleTx();
@@ -126,18 +106,10 @@ void init(void) {
     SwitchClocks();
     sclockSetup();
 
-    ppoolInit();
     radioInit(RADIO_TXPQ_MAX_SIZE, RADIO_RXPQ_MAX_SIZE);
     radioSetChannel(RADIO_CHANNEL);
     radioSetSrcPanID(RADIO_PAN_ID);
     radioSetSrcAddr(RADIO_SRC_ADDR);
-
-    ppoolInit();
-    radioInit(RADIO_TXPQ_MAX_SIZE, RADIO_RXPQ_MAX_SIZE);
-    radioSetChannel(RADIO_CHANNEL);
-    radioSetSrcPanID(RADIO_PAN_ID);
-    radioSetSrcAddr(RADIO_SRC_ADDR);
-
 
     for (i = 0; i < 6; i++) {
         LED_RED = ~LED_RED;
@@ -157,6 +129,6 @@ void init(void) {
     EnableIntU1RX;
 
     //Set this if the electronics for Ant diversity are installed
-    atSetAntDiversity(ANTENNA_DIVERSITY);
+    //atSetAntDiversity(ANTENNA_DIVERSITY);
 }
 

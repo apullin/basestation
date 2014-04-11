@@ -15,15 +15,17 @@
         <itemPath>../imageproc-lib/utils.h</itemPath>
         <itemPath>../imageproc-lib/at86rf231_driver.h</itemPath>
         <itemPath>../imageproc-lib/ppool.h</itemPath>
+        <itemPath>../imageproc-lib/bsp-basestation.h</itemPath>
       </logicalFolder>
-      <itemPath>init.h</itemPath>
-      <itemPath>xbee_handler.h</itemPath>
+      <itemPath>src/init.h</itemPath>
+      <itemPath>src/xbee_constants.h</itemPath>
+      <itemPath>src/xbee_handler.h</itemPath>
+      <itemPath>src/settings.h</itemPath>
     </logicalFolder>
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
       <logicalFolder name="shared" displayName="imageproc-lib" projectFiles="true">
-        <itemPath>../imageproc-lib/ipspi1.c</itemPath>
         <itemPath>../imageproc-lib/init_default.c</itemPath>
         <itemPath>../imageproc-lib/payload.c</itemPath>
         <itemPath>../imageproc-lib/radio.c</itemPath>
@@ -31,11 +33,12 @@
         <itemPath>../imageproc-lib/delay.s</itemPath>
         <itemPath>../imageproc-lib/at86rf231_driver.c</itemPath>
         <itemPath>../imageproc-lib/ppool.c</itemPath>
+        <itemPath>../imageproc-lib/spi_controller.c</itemPath>
       </logicalFolder>
-      <itemPath>init.c</itemPath>
-      <itemPath>main.c</itemPath>
-      <itemPath>traps.c</itemPath>
-      <itemPath>xbee_handler.c</itemPath>
+      <itemPath>src/init.c</itemPath>
+      <itemPath>src/main.c</itemPath>
+      <itemPath>src/traps.c</itemPath>
+      <itemPath>src/xbee_handler.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -45,6 +48,7 @@
   </logicalFolder>
   <sourceRootList>
     <Elem>.</Elem>
+    <Elem>../imageproc-lib</Elem>
   </sourceRootList>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
@@ -92,7 +96,7 @@
         <property key="enable-short-double" value="true"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="./;../imageproc-lib"/>
+        <property key="extra-include-directories" value="../imageproc-lib;src"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="false"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -112,7 +116,7 @@
         <property key="optimization-level" value="0"/>
         <property key="post-instruction-scheduling" value="default"/>
         <property key="pre-instruction-scheduling" value="default"/>
-        <property key="preprocessor-macros" value="__BASESTATION"/>
+        <property key="preprocessor-macros" value=""/>
         <property key="scalar-model" value="default"/>
         <property key="use-cci" value="false"/>
         <property key="use-iar" value="false"/>
@@ -185,7 +189,7 @@
         <property key="fast-math" value="true"/>
         <property key="generic-16-bit" value="false"/>
         <property key="legacy-libc" value="false"/>
-        <property key="oXC16glb-macros" value=""/>
+        <property key="oXC16glb-macros" value="__BASESTATION"/>
         <property key="output-file-format" value="elf"/>
         <property key="relaxed-math" value="false"/>
         <property key="save-temps" value="false"/>
