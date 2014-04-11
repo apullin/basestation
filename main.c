@@ -46,24 +46,20 @@
  *  <SAMPLE USAGE>
  */
 
-#include "p33Fxxxx.h"
-#include "generic_typedefs.h"
+#include <xc.h>                 //Microchip chip specific
+#include <Generic.h>            //Microchip generic typedefs
+#include "generic_typedefs.h"   //iplib generic tyepdefs
 #include "init_default.h"
 #include "utils.h"
 #include "init.h"
-#include "uart.h"
+#include "uart.h"               //Microchip
 #include "mac_packet.h"
 #include "radio.h"
-#include "at86rf.h"
 #include "payload.h"
 #include <stdio.h>
 #include "xbee_constants.h"
 #include "xbee_handler.h"
-//#include "lcd.h"
-
-// _FOSCSEL(FNOSC_PRIPLL);
-// _FOSC(FCKSM_CSDCMD & OSCIOFNC_OFF & POSCMD_XT);
-// _FWDT(FWDTEN_OFF);
+#include "led.h"
 
 void init(void);
 
@@ -71,9 +67,10 @@ void init(void);
 // For now, you need to replace these values with the appropriate ones for your
 // project.  These can be changed from python now.
 // RSF working address 9/2011
-#define SRC_ADDR	    0x2051
-#define SRC_PAN_ID	    0x2050
-#define MY_CHAN             0x19
+/////// Radio settings ///////
+#define RADIO_CHANNEL		0x19
+#define RADIO_SRC_ADDR 		0x2052
+#define RADIO_PAN_ID            0x2050
 
 //Motile Release
 //#define SRC_ADDR	    0x3001
@@ -85,6 +82,11 @@ void init(void);
 //#define MY_CHAN             0x16
 
 
+#define RADIO_TXPQ_MAX_SIZE 40
+#define RADIO_RXPQ_MAX_SIZE 40
+
+#define ANTENNA_DIVERSITY 0
+
 #define LED_RED             LED_0
 #define LED_YLW1            LED_1
 #define LED_YLW2            LED_2
@@ -93,33 +95,53 @@ void init(void);
 int main(void) {
     init();
 
-    while(1) {
-        if (!radioIsRxQueueEmpty())
-        {
+    MacPacket packet;
+    Payload pld;
+    unsigned char command, status;
+
+    while (1) {
+
+        //Packet into from radio, send to UART
+        if (!radioRxQueueEmpty()) {
             xbeeHandleRx();
-            LED_BLU = ~LED_BLU;
+            LED_BLU ^= 1;
         }
-        if (!radioIsTxQueueEmpty())
-        {
-            macSendPacket();
-            LED_RED = ~LED_RED;
+        //Packet from UART, to be sent over raido
+        if (!radioTxQueueEmpty()) {
+            xbeeHandleTx();
+            LED_RED ^= 1;
         }
-        
+
+        radioProcess();
     }
 }
 
-void init(void)
-{
+void init(void) {
     int i;
-    volatile WordVal src_addr = {SRC_ADDR};
-    volatile WordVal src_pan_id = {SRC_PAN_ID};
 
     SetupClock();
-    SwitchClocks();
     SetupPorts();
 
-    for (i = 0; i < 6; i++)
-    {
+    int old_ipl;
+    mSET_AND_SAVE_CPU_IP(old_ipl, 1);
+
+    SwitchClocks();
+    sclockSetup();
+
+    ppoolInit();
+    radioInit(RADIO_TXPQ_MAX_SIZE, RADIO_RXPQ_MAX_SIZE);
+    radioSetChannel(RADIO_CHANNEL);
+    radioSetSrcPanID(RADIO_PAN_ID);
+    radioSetSrcAddr(RADIO_SRC_ADDR);
+
+    ppoolInit();
+    radioInit(RADIO_TXPQ_MAX_SIZE, RADIO_RXPQ_MAX_SIZE);
+    radioSetChannel(RADIO_CHANNEL);
+    radioSetSrcPanID(RADIO_PAN_ID);
+    radioSetSrcAddr(RADIO_SRC_ADDR);
+
+
+    for (i = 0; i < 6; i++) {
         LED_RED = ~LED_RED;
         delay_ms(50);
         LED_YLW1 = ~LED_YLW1;
@@ -134,108 +156,8 @@ void init(void)
     SetupInterrupts();
     EnableIntU1TX;
     EnableIntU1RX;
-    radioInit(src_addr, src_pan_id, 150, 150);
-    radioSetChannel(MY_CHAN); //Set to my channel
 
     //Set this if the electronics for Ant diversity are installed
-    atSetAntDiversity(1);
+    atSetAntDiversity(ANTENNA_DIVERSITY);
 }
-
-//read data from the UART, and call the proper function based on the Xbee code
-void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
-{
-    static unsigned char uart_rx_state = UART_RX_WAITING;
-    static unsigned char uart_rx_cnt = 0;
-    static Payload uart_pld;
-    static WordVal uart_pld_len;
-    static byte    uart_checksum;
-    static unsigned char packet_type = 0;
-    static unsigned char test;
-    
-    unsigned char c;
-
-    if(U1STAbits.OERR)
-    {
-        U1STAbits.OERR = 0;
-    }
-
-    c = ReadUART1();
-    if (uart_rx_state == UART_RX_WAITING && c == RX_START)
-    {
-        uart_rx_state = UART_RX_ON;
-        packet_type = 0;
-        uart_rx_cnt = 1;
-        uart_checksum = 0x00;
-    }else if (uart_rx_state == UART_RX_ON)
-    {
-        switch (uart_rx_cnt)
-        {
-            //XBee interface uses two bytes for payload length, despite the
-            //fact that packets can't be longer than 128 bytes. The high byte
-            //is extracted, but never used here.
-            case LEN_HB_POS:
-                uart_pld_len.byte.HB = c;
-                uart_rx_cnt++;
-                break;
-            case LEN_LB_POS:
-                uart_pld_len.byte.LB = c;
-                //We create a payload structure to store the data incoming from the uart
-                uart_pld = payCreateEmpty(uart_pld_len.byte.LB-PAYLOAD_HEADER_LENGTH);
-                test = uart_pld_len.byte.LB;
-                uart_rx_cnt++;
-                break;
-            case API_ID_POS:
-                //Currently, we're only supporting the 16-bit TX/RX API, 
-                //and the AT command mode
-                packet_type = c;
-                uart_checksum += c;
-                uart_rx_cnt++;
-                break;
-            default:
-            if (uart_rx_cnt == (uart_pld_len.byte.LB + RX_DATA_OFFSET-1))
-            {
-                if (uart_checksum + c == 0xFF) //We have a legit packet
-                {
-                    //Check for type of packet and call relevant function
-                    switch (packet_type)
-                    {
-                        case AT_COMMAND_MODE:
-                            xbeeHandleAt(uart_pld);
-                            break;
-
-                        case TX_16BIT:
-                            xbeeHandleTx(uart_pld);
-                            break;
-
-                        default:
-                            //do nothing, but probably should send an error
-                            break;
-                    }
-                    payDelete(uart_pld);
-
-                }else //Start over
-                {
-                    payDelete(uart_pld);
-                }
-
-                uart_rx_state = UART_RX_WAITING;
-            }else
-            {
-                uart_pld->pld_data[uart_rx_cnt-RX_DATA_OFFSET] = c;
-                uart_checksum += c;
-                uart_rx_cnt++;
-            }
-            break;
-        }
-            
-    }
-    _U1RXIF = 0;
-}
-
-void __attribute__((interrupt, no_auto_psv)) _U1TXInterrupt(void)
-{
-    _U1TXIF = 0;
-}
-
-
 
