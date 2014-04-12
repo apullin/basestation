@@ -46,20 +46,19 @@
  *  <SAMPLE USAGE>
  */
 
-#include "p33Fxxxx.h"
+#include <xc.h>
 #include "generic_typedefs.h"
 #include "init_default.h"
 #include "utils.h"
 #include "init.h"
 #include "uart.h"
 #include "mac_packet.h"
-#include "radio.h"
-#include "at86rf.h"
+#include "radio.h"   //for radio stack calls
 #include "payload.h"
 #include <stdio.h>
 #include "xbee_constants.h"
 #include "xbee_handler.h"
-//#include "lcd.h"
+#include "at86rf231_driver.h" //for TRX calls
 
 /////////////////////////////////////////////////////////////////
 //#define FCY                     40000000
@@ -118,7 +117,7 @@ void xbSetupDma(void) {
     IEC4bits.DMA6IE = 1;    // enable DMA interrupt
 }
 
-
+//Recieved radio packet, send over UART
 void xbeeHandleRx(MacPacket packet) {
 
     int i;
@@ -148,8 +147,7 @@ void xbeeHandleRx(MacPacket packet) {
             txBufferA[RX_FRAME_OFFSET + i] = pld_str[i];
         }
 
-        //print(pld_str+2);
-        txBufferA[RX_FRAME_OFFSET + pld_len] = 0xFF - checksum;	//Send Checksum Data
+        txBufferA[RX_FRAME_OFFSET + pld_len] = 0xFF - checksum;	//set Checksum byte
     CRITICAL_SECTION_END
 
     payDelete(packet->payload);
@@ -163,38 +161,34 @@ void xbeeHandleRx(MacPacket packet) {
 }
 
 
-
-/////////////////////////////////////////////////////////////////////////
-
-
-
-
-
+//Recieved UART Xbee packet, send packet out over the radio
 void xbeeHandleTx(Payload uart_pld){
 
     MacPacket tx_packet;
     WordVal dst_addr;
     Payload rx_pld;
-    char test;
+    //char test;
 
     //Get destination address from uart_pld package
     //Frame ID and options packet are currently ignored for this type of packet...
     dst_addr.byte.HB = uart_pld->pld_data[DEST_ADDR_HB_POS - RX_DATA_OFFSET];
     dst_addr.byte.LB = uart_pld->pld_data[DEST_ADDR_LB_POS - RX_DATA_OFFSET];
 
-    test = dst_addr.byte.LB;
+    //test = dst_addr.byte.LB;
 
     //Create new packet with just the data that needs to be sent by the radio
-    rx_pld = payCreateEmpty(payGetPayloadLength(uart_pld)-(RX_FRAME_OFFSET-RX_DATA_OFFSET)-PAYLOAD_HEADER_LENGTH-1);
+    int payloadLength = payGetPayloadLength(uart_pld)-(RX_FRAME_OFFSET-RX_DATA_OFFSET)-PAYLOAD_HEADER_LENGTH-1;
+    rx_pld = payCreateEmpty(payloadLength);
 
-    test = payGetPayloadLength(rx_pld);
+    //test = payGetPayloadLength(rx_pld);
 
     payAppendData(rx_pld, -PAYLOAD_HEADER_LENGTH,
             payGetPayloadLength(rx_pld),
             &(uart_pld->pld_data[RX_DATA_OFFSET]));
 
     //Place packet in radio queue for sending
-    tx_packet = macCreatePacket();
+
+    tx_packet = radioRequestPacket(payloadLength);
     tx_packet->payload = rx_pld;
     tx_packet->payload_length = payGetPayloadLength(rx_pld);//rx_pld_len.byte.LB - (RX_FRAME_OFFSET - RX_DATA_OFFSET);
     //tx_packet->dest_pan_id = src_pan_id; //Already set when macCreatePacket is called.
@@ -250,11 +244,11 @@ void xbeeHandleAt(Payload rx_pld)
             {
                 data.byte.HB = rx_pld->pld_data[3];
                 data.byte.LB = rx_pld->pld_data[4];
-                radioSetPanID(data);
+                radioSetSrcPanID(data.val);
             }
             if (frame != 0)
             {
-                data = radioGetPanID();
+                data.val = (unsigned int)radioGetSrcPanID();
                 bytes[0] = data.byte.HB;
                 bytes[1] = data.byte.LB;
 
@@ -266,11 +260,11 @@ void xbeeHandleAt(Payload rx_pld)
             {
                 data.byte.HB = rx_pld->pld_data[3];
                 data.byte.LB = rx_pld->pld_data[4];
-                radioSetSrcAddr(data);
+                radioSetSrcAddr(data.val);
             }
             if (frame != 0)
             {
-                data = radioGetSrcAddr();
+                data.val = radioGetSrcAddr();
                 bytes[0] = data.byte.HB;
                 bytes[1] = data.byte.LB;
 
@@ -281,14 +275,14 @@ void xbeeHandleAt(Payload rx_pld)
             if (frame != 0)
             {
                 bytes[0] = 0;
-                bytes[1] = phyGetLastAckd();;
+                bytes[1] = trxGetLastACKd();
 
                 xbeeHandleATR(frame, command, bytes, 2);
             }
             break;
         case AT_SNIFFER:
             if (length != 3)
-                atSetPromMode(rx_pld->pld_data[3]);  //Put radio in sniffer mode
+                trxSetPromMode(rx_pld->pld_data[3]);  //Put radio in sniffer mode
             break;
     }
 }

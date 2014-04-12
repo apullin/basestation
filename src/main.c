@@ -60,6 +60,7 @@
 #include "xbee_constants.h"
 #include "xbee_handler.h"
 #include "settings.h"
+#include "sclock.h"
 
 void init(void);
 
@@ -78,7 +79,7 @@ int main(void) {
                 pld = macGetPayload(packet);
                 status = payGetStatus(pld);
                 command = payGetType(pld);
-                xbeeHandleRx(pld);
+                xbeeHandleRx(packet);
                 LED_BLU ^= 1;
                 radioReturnPacket(packet);
             }    
@@ -86,11 +87,14 @@ int main(void) {
 
         //Packet from UART, to be sent over raido
         if (!radioTxQueueEmpty()) {
-            xbeeHandleTx();
+            radioProcess();
+            //xbeeHandleTx(uart_pld);
+            //xbeeHandleTx is called when we hit the end of a packet over UART, in the UART1 interrupt
             LED_RED ^= 1;
         }
 
-        radioProcess();
+        //radioProcess();
+        
     }
 }
 
@@ -123,12 +127,102 @@ void init(void) {
     }
 
     SetupUART1();
-	xbSetupDma();
+    xbSetupDma();
     SetupInterrupts();
-    EnableIntU1TX;
+    //EnableIntU1TX;  //Now done by DMA
     EnableIntU1RX;
 
     //Set this if the electronics for Ant diversity are installed
     //atSetAntDiversity(ANTENNA_DIVERSITY);
 }
 
+//read data from the UART, and call the proper function based on the Xbee code
+void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
+{
+    static unsigned char uart_rx_state = UART_RX_WAITING;
+    static unsigned char uart_rx_cnt = 0;
+    static Payload uart_pld;
+    static WordVal uart_pld_len;
+    static byte    uart_checksum;
+    static unsigned char packet_type = 0;
+    static unsigned char test;
+
+    unsigned char c;
+
+    if(U1STAbits.OERR)
+    {
+        U1STAbits.OERR = 0;
+    }
+
+    c = ReadUART1();
+    if (uart_rx_state == UART_RX_WAITING && c == RX_START)
+    {
+        uart_rx_state = UART_RX_ON;
+        packet_type = 0;
+        uart_rx_cnt = 1;
+        uart_checksum = 0x00;
+    }else if (uart_rx_state == UART_RX_ON)
+    {
+        switch (uart_rx_cnt)
+        {
+            //XBee interface uses two bytes for payload length, despite the
+            //fact that packets can't be longer than 128 bytes. The high byte
+            //is extracted, but never used here.
+            case LEN_HB_POS:
+                uart_pld_len.byte.HB = c;
+                uart_rx_cnt++;
+                break;
+            case LEN_LB_POS:
+                uart_pld_len.byte.LB = c;
+                //We create a payload structure to store the data incoming from the uart
+                uart_pld = payCreateEmpty(uart_pld_len.byte.LB-PAYLOAD_HEADER_LENGTH);
+                test = uart_pld_len.byte.LB;
+                uart_rx_cnt++;
+                break;
+            case API_ID_POS:
+                //Currently, we're only supporting the 16-bit TX/RX API,
+                //and the AT command mode
+                packet_type = c;
+                uart_checksum += c;
+                uart_rx_cnt++;
+                break;
+            default:
+            if (uart_rx_cnt == (uart_pld_len.byte.LB + RX_DATA_OFFSET-1))
+            {
+                if (uart_checksum + c == 0xFF) //We have a legit packet
+                {
+                    //Check for type of packet and call relevant function
+                    switch (packet_type)
+                    {
+                        case AT_COMMAND_MODE:
+                            xbeeHandleAt(uart_pld);
+                            break;
+
+                        case TX_16BIT:
+                            xbeeHandleTx(uart_pld);
+                            break;
+
+                        default:
+                            //do nothing, but probably should send an error
+                            break;
+                    }
+                    payDelete(uart_pld);
+
+                }else //Start over
+                {
+                    payDelete(uart_pld);
+                }
+
+                uart_rx_state = UART_RX_WAITING;
+            }else
+            {
+                uart_pld->pld_data[uart_rx_cnt-RX_DATA_OFFSET] = c;
+                uart_checksum += c;
+                uart_rx_cnt++;
+            }
+            break;
+        }
+
+    }
+    _U1RXIF = 0;
+}

@@ -1,4 +1,4 @@
-#include "p33Fxxxx.h"
+#include <xc.h>
 #include "init.h"
 #include "uart.h"
 #include "timer.h"
