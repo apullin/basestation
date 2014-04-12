@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 """
 cmd module
-authors: stanbaek
-Created on 2010-07-07:
+authors: stanbaek, apullin
+
+Modifications and additions to this file made by Andrew Pullin are copyright, 2013
+Copyrights are acknowledged for portions of this code extant before modifications by Andrew Pullin 
+Any application of BSD or other license to copyright content without the authors express approval
+is invalid and void.
 
 """
 
@@ -28,43 +32,47 @@ ECHO = 0x1F      # send back the received packet
 # for IMU (0x20 - 0x3F)
 GET_IMU_DATA = 0x20
 GET_IMU_LOOP = 0x21
-RUN_IMU_LOOP = 0x2A
-CMD_TRANSFER_COMPLETE = 0x2B
-CMD_TEST2 = 0x2C
-CMD_DATA_PACKET = 0x2D
-POSTRUN_IMU_LOOP = 0x2E
-PRERUN_IMU_LOOP = 0x2C
 START_IMU_SAVE = 0x22
 STOP_IMU_SAVE = 0x23
-TX_SAVED_IMU_DATA = 0x24
-ERASE_MEM_SECTOR = 0x25
 
+SET_POSE_SAVE_FLASH = 0x25
+SET_ESTIMATE_POSE = 0x26
+
+TX_SAVED_IMU_DATA = 0x2A
+TX_SAVED_STATE_DATA = 0x2B
+TX_DUTY_CYCLE = 0x2C
+
+START_AUTO_CTRL = 0x30
+STOP_AUTO_CTRL = 0x31
+
+ERASE_MEM_SECTOR = 0x3A
+ 
+RESET_STOPWATCH = 0x3B
 
 BASE_ECHO = 0x3f
 
 
 # CMD values of 0x80(128) - 0xEF(239) are available for user applications.
+SET_THRUST_OPEN_LOOP =      0x80
+SET_THRUST_CLOSED_LOOP =    0x81
+SET_PID_GAINS =             0x82
+GET_PID_TELEMETRY =         0x83
+SET_CTRLD_TURN_RATE =       0x84
+GET_IMU_LOOP_ZGYRO =        0x85
+SET_MOVE_QUEUE =            0x86
+SET_STEERING_GAINS =        0x87
+SOFTWARE_RESET     =        0x88
+SPECIAL_TELEMETRY  =        0x89
+ERASE_SECTORS      =        0x8A
+FLASH_READBACK     =        0x8B
+SLEEP              =        0x8C
+SET_VEL_PROFILE =           0x8D
+WHO_AM_I =                  0x8E
+START_TELEM =               0x8F
+ZERO_POS =                  0x90
+SET_HALL_GAINS =            0x91
+SET_TAIL_QUEUE =            0x92
+SET_TAIL_GAINS =            0x93
+SET_OL_VIBE =               0x95
 
 # CMD values of 0xF0(240) - 0xFF(255) are reserved for future use
-
-"""
-CMD_DCUPDATE = 101
-CMD_DCSWEEP = 106
-CMD_DIRDCUPDATE = 110
-CMD_STEERUPDATE = 102
-CMD_TURNLEFT = chr(103)
-CMD_TURNRIGHT = chr(104)
-CMD_NOTURN = chr(105)
-CMD_DIRECTION = 107
-CMD_DIRFORWARD = chr(108)
-CMD_DIRBACKWARD = chr(109)
-CMD_WIIMOTE = 121
-CMD_WIIREAD = 122
-CMD_WIICONTREAD = 123
-CMD_WIIBLOBREAD = 124
-CMD_AUTOPILOT = 131
-CMD_SETGAINS = 141
-"""
-
-
-
