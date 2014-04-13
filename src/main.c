@@ -102,13 +102,12 @@ void init(void) {
     int i;
 
     SetupClock();
-    SetupPorts();
-
-    int old_ipl;
-    mSET_AND_SAVE_CPU_IP(old_ipl, 1);
-
     SwitchClocks();
+    SetupPorts();
     sclockSetup();
+
+    //int old_ipl;
+    //mSET_AND_SAVE_CPU_IP(old_ipl, 1);
 
     radioInit(RADIO_TXPQ_MAX_SIZE, RADIO_RXPQ_MAX_SIZE);
     radioSetChannel(RADIO_CHANNEL);
