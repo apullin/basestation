@@ -29,7 +29,8 @@ def main():
     
    
     # Query
-    R1.query( retries = 1 )
+    #R1.query( retries = 1 )
+    R1.reset()
     
     if EXIT_WAIT:  #Pause for a Ctrl + Cif specified
         while True:

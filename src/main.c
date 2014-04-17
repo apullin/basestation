@@ -106,23 +106,23 @@ void init(void) {
     SetupPorts();
     sclockSetup();
 
-    //int old_ipl;
-    //mSET_AND_SAVE_CPU_IP(old_ipl, 1);
+    int old_ipl;
+    mSET_AND_SAVE_CPU_IP(old_ipl, 1);
 
     radioInit(RADIO_TXPQ_MAX_SIZE, RADIO_RXPQ_MAX_SIZE);
     radioSetChannel(RADIO_CHANNEL);
     radioSetSrcPanID(RADIO_PAN_ID);
     radioSetSrcAddr(RADIO_SRC_ADDR);
 
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < 4; i++) {
         LED_RED = ~LED_RED;
-        delay_ms(50);
+        delay_ms(30);
         LED_YLW1 = ~LED_YLW1;
-        delay_ms(50);
+        delay_ms(30);
         LED_YLW2 = ~LED_YLW2;
-        delay_ms(50);
+        delay_ms(30);
         LED_BLU = ~LED_BLU;
-        delay_ms(50);
+        delay_ms(30);
     }
 
     SetupUART1();

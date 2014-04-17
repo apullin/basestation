@@ -3,7 +3,7 @@ Contents of this file are copyright Andrew Pullin, 2013
 """
 
 #Base station
-BS_COMPORT = 'COM17'
+BS_COMPORT = 'COM5'
 BS_BAUDRATE = 230400
 #XBee
 #BS_COMPORT = 'COM4'

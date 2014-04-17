@@ -80,7 +80,8 @@ void __attribute__((__interrupt__, no_auto_psv)) _OscillatorFail(void)
 void __attribute__((__interrupt__, no_auto_psv)) _AddressError(void)
 {
         INTCON1bits.ADDRERR = 0;        //Clear the trap flags
-        while(1) {
+        char hold = 1;
+        while(hold) {
             LED_1 = ON;
             delay_ms(200);
             LED_1 = OFF;
@@ -90,7 +91,8 @@ void __attribute__((__interrupt__, no_auto_psv)) _AddressError(void)
             LED_1 = OFF;
             delay_ms(1000);
         }
-        while(1) {
+        hold = 0;
+        while(hold) {
             asm volatile("btg   PORTF, #1");
             for (k=0; k<100; k++) { delay_us(500); }   // Waste approximatelly 50ms
         };
