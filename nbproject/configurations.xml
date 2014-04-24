@@ -38,7 +38,6 @@
         <itemPath>../imageproc-lib/sclock.c</itemPath>
       </logicalFolder>
       <itemPath>src/init.c</itemPath>
-      <itemPath>src/main.c</itemPath>
       <itemPath>src/xbee_handler.c</itemPath>
       <itemPath>src/traps.c</itemPath>
     </logicalFolder>
@@ -98,7 +97,8 @@
         <property key="enable-short-double" value="true"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value="../imageproc-lib;src"/>
+        <property key="extra-include-directories"
+                  value="FreeRTOS/Source/include;FreeRTOS/Source/portable/MPLAB/PIC24_dsPIC;src;../imageproc-lib"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="false"/>
         <property key="oXC16gcc-align-arr" value="false"/>
@@ -247,7 +247,6 @@
         <property key="UART 1" value="true"/>
         <property key="UART 2" value="true"/>
         <property key="debugoptions.useswbreakpoints" value="false"/>
-        <property key="firmware.download.all" value="false"/>
         <property key="hwtoolclock.frcindebug" value="false"/>
         <property key="hwtoolclock.instructionspeed" value="4"/>
         <property key="hwtoolclock.units" value="mips"/>
