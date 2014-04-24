@@ -20,7 +20,7 @@ RESET_R1 = False
 EXIT_WAIT   = False
 
 def main():    
-    xb = setupSerial(shared.BS_COMPORT, shared.BS_BAUDRATE)
+    xb = setupSerial(shared.BS_COMPORT, shared.BS_BAUDRATE, timeout = 0, rtscts = True)
     
     R1 = Robot('\x20\x52', xb)
     
@@ -29,8 +29,8 @@ def main():
     
    
     # Query
-    #R1.query( retries = 1 )
-    R1.reset()
+    R1.query( retries = 1 )
+    #R1.reset()
     
     if EXIT_WAIT:  #Pause for a Ctrl + Cif specified
         while True:

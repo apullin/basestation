@@ -132,14 +132,14 @@ void xbeeHandleRx(MacPacket packet) {
     checksum += src_addr.byte.HB;
     checksum += src_addr.byte.LB;
 
-    CRITICAL_SECTION_START
+    //CRITICAL_SECTION_START
         txBufferA[0] = XB_RX_START;     //Start Byte
         txBufferA[1] = 0x00; 	        //Length High Byte
         txBufferA[2] = xb_frame_len;	//Length Low Byte
         txBufferA[3] = XB_API_ID;       //API Identifier - Currently only support the RX type
         txBufferA[4] = src_addr.byte.HB;    //Source Address High byte
         txBufferA[5] = src_addr.byte.LB;    //Source Address Low Byte
-        txBufferA[6] = 0x00;	        //'RSSI' Not currently implemented
+        txBufferA[6] = radioGetLastRSSI();	        //'RSSI' Not currently implemented
         txBufferA[7] = 0x00;            //'Options' Not currently implemented
 
         for(i = 0; i < pld_len; i++) {
@@ -148,10 +148,7 @@ void xbeeHandleRx(MacPacket packet) {
         }
 
         txBufferA[RX_FRAME_OFFSET + pld_len] = 0xFF - checksum;	//set Checksum byte
-    CRITICAL_SECTION_END
-
-    payDelete(packet->payload);
-    macDeletePacket(packet);
+    //CRITICAL_SECTION_END
 
     // pld_len + RX_FRAME_OFFSET + length(CHKSUM) - 1
     DMA6CNT = pld_len + RX_FRAME_OFFSET;

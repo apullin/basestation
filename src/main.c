@@ -78,7 +78,7 @@ int main(void) {
             if ((packet = radioDequeueRxPacket()) != NULL) {
                 pld = macGetPayload(packet);
                 status = payGetStatus(pld);
-                command = payGetType(pld);
+                command = payGetType(pld);  // For debugging only
                 xbeeHandleRx(packet);
                 LED_BLU ^= 1;
                 radioReturnPacket(packet);
@@ -153,7 +153,12 @@ void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
         U1STAbits.OERR = 0;
     }
 
+    //static char buf[20];
+    //static int i=0;
+
     c = ReadUART1();
+    //buf[i] = (char)c;
+    //i++;
     if (uart_rx_state == UART_RX_WAITING && c == RX_START)
     {
         uart_rx_state = UART_RX_ON;
@@ -174,6 +179,7 @@ void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
             case LEN_LB_POS:
                 uart_pld_len.byte.LB = c;
                 //We create a payload structure to store the data incoming from the uart
+                //uart_pld = payCreateEmpty(uart_pld_len.byte.LB-PAYLOAD_HEADER_LENGTH -1 );  //AP 4/18/2014
                 uart_pld = payCreateEmpty(uart_pld_len.byte.LB-PAYLOAD_HEADER_LENGTH);
                 test = uart_pld_len.byte.LB;
                 uart_rx_cnt++;
@@ -224,4 +230,9 @@ void __attribute__((__interrupt__, no_auto_psv)) _U1RXInterrupt(void)
 
     }
     _U1RXIF = 0;
+}
+
+void __attribute__((__interrupt__, no_auto_psv)) _U1TXInterrupt(void)
+{
+    _U1TXIF = 0;
 }
