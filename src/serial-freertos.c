@@ -68,6 +68,9 @@ void vSerialStartTask(unsigned portBASE_TYPE uxPriority) {
     //Create task
     //TODO: Should we two separate tasks, one for RX, one for TX?
     xTaskCreate(vSerialTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+
+    //Enable UART interrupts
+    ConfigIntUART1( UART_RX_INT_EN & UART_RX_INT_PR4);
 }
 
 QueueHandle_t serialGetTXQueueHandle() {
@@ -94,9 +97,6 @@ void SetupUART1() {
             UART_IrDA_POL_INV_ZERO; // If not, whole output inverted.
     U1BRGvalue = 43; // (Fcy / ({16|4} * baudrate)) - 1
     OpenUART1(U1MODEvalue, U1STAvalue, U1BRGvalue);
-
-    ConfigIntUART1(UART_TX_INT_EN & UART_TX_INT_PR4 & UART_RX_INT_EN &
-            UART_RX_INT_PR4);
 
     /* It is assumed that this function is called prior to the scheduler being
     started.  Therefore interrupts must not be allowed to occur yet as they
@@ -163,7 +163,6 @@ void __attribute__((__interrupt__, auto_psv)) _U1RXInterrupt(void) {
 }
 
 
-
 //It is unclear if this interrupt is needed;
 //The CPU seemed to get stuck without it declared.
 void __attribute__((__interrupt__, no_auto_psv)) _U1TXInterrupt(void)
@@ -210,6 +209,6 @@ static portTASK_FUNCTION(vSerialTask, pvParameters) {
         DMA6REQbits.FORCE = 1;
         //Take UART semaphore: blocks until end of DMA (DMA interrupt gives it back)
         //xSemaphoreTake(xUART_DMA_TX_Semaphore, portMAX_DELAY);
-
+        blobDestroy(xbeeFmt);
     }
 }

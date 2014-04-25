@@ -18,8 +18,9 @@
       </logicalFolder>
       <itemPath>src/init.h</itemPath>
       <itemPath>src/xbee_constants.h</itemPath>
-      <itemPath>src/xbee_handler.h</itemPath>
       <itemPath>src/settings.h</itemPath>
+      <itemPath>src/xbee_handler-freertos.h</itemPath>
+      <itemPath>src/serial-freertos.h</itemPath>
     </logicalFolder>
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
@@ -55,12 +56,12 @@
         <itemPath>../imageproc-lib/mac_packet.c</itemPath>
         <itemPath>../imageproc-lib/sclock.c</itemPath>
       </logicalFolder>
-      <itemPath>src/xbee_handler.c</itemPath>
       <itemPath>src/traps.c</itemPath>
       <itemPath>src/main_basestation_freertos.c</itemPath>
       <itemPath>src/serial-freertos.c</itemPath>
       <itemPath>src/blob.h</itemPath>
       <itemPath>src/blob.c</itemPath>
+      <itemPath>src/xbee_handler-freertos.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"

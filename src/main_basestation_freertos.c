@@ -55,14 +55,10 @@
 //Library includes
 #include "init_default.h"
 #include "utils.h"
-#include "init.h"
 #include "uart.h"               //Microchip
-#include "mac_packet.h"
 #include "radio.h"
-#include "payload.h"
 #include <stdio.h>
-#include "xbee_constants.h"
-#include "xbee_handler.h"
+#include "xbee_handler-freertos.h"
 #include "settings.h"
 #include "sclock.h"
 
