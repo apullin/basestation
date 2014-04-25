@@ -46,6 +46,12 @@
  */
 
 #include <xc.h>
+//FreeRTOS includes
+#include "FreeRTOS.h"
+#include "queue.h"
+#include "task.h"
+
+//Library includes
 #include "generic_typedefs.h"
 #include "init_default.h"
 #include "utils.h"
@@ -58,15 +64,15 @@
 #include "xbee_constants.h"
 #include "xbee_handler.h"
 #include "at86rf231_driver.h" //for TRX calls
+#include "blob.h"
 
-/////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////
+//////////       Private Macros        ///////////
+//////////////////////////////////////////////////
 //#define FCY                     40000000
 #define BAUDRATE                230400  //921600
 #define BRGVAL4                 ((FCY/BAUDRATE)/4)-1
 #define BRGVAL16                ((FCY/BAUDRATE)/16)-1
-
-#define SER_DATAWAIT            100
-
 
 #define XB_OVERHEAD_LENGTH      5
 #define XB_RX_START             0x7E
@@ -76,48 +82,26 @@
 //#define RX_DATA_OFFSET          3 //Offset for accounting for RX_START and LEN_HB/LB bytes
 
 
-#define DMA_UART_TX_BUFFER_SIZE 128
-#define DMA_UART_RX_BUFFER_SIZE 128
+
+//////////////////////////////////////////////////
+//////////      Private variables      ///////////
+//////////////////////////////////////////////////
+static QueueHandle_t serialTXQueue;
+static QueueHandle_t radioRXQueue;
 
 
-/*-----------------------------------------------------------------------------
- *          Static Variables
------------------------------------------------------------------------------*/
-
-unsigned char txBufferA[DMA_UART_TX_BUFFER_SIZE] __attribute__((space(dma)));
-unsigned char rxBuffer[DMA_UART_RX_BUFFER_SIZE];
-
-static volatile unsigned char dmaTxReady = 1;
-
-void __attribute__((__interrupt__, no_auto_psv)) _DMA6Interrupt(void) {
-    dmaTxReady = 1;
-    IFS4bits.DMA6IF = 0;    //clear the DMA6 interrupt flag
-}
-
-void xbSetupDma(void) {
-
-    DMA6CON = 0x6001;       // byte, one-shot, post-increment, RAM 2 Peripheral
-    DMA6CNT = 0;
-    #if defined(__IMAGEPROC1) || defined(__BASESTATION)
-        DMA6REQ = 0x000C;       //  select UART1 transmitter
-        DMA6PAD = (volatile unsigned int) &U1TXREG;
-    #elif defined(__EXP16DEV) || defined(__BASESTATION2)
-        DMA6REQ = 0x001F;       //  select UART2 transmitter
-        DMA6PAD = (volatile unsigned int) &U2TXREG;
-    #else
-        #error "UART/DMA is not defined on this project"
-    #endif
+//////////////////////////////////////////////////
+////////// Private function prototypes ///////////
+//////////////////////////////////////////////////
+static portTASK_FUNCTION_PROTO(vXBeeTask, pvParameters);
 
 
-    DMA6STA = __builtin_dmaoffset(txBufferA);
-
-    IPC17bits.DMA6IP = 4;
-    IFS4bits.DMA6IF = 0;    // clear DMA interrupt flag
-    IEC4bits.DMA6IE = 1;    // enable DMA interrupt
-}
+//////////////////////////////////////////////////
+////////// Public function definitions ///////////
+//////////////////////////////////////////////////
 
 //Recieved radio packet, send over UART
-void xbeeHandleRx(MacPacket packet) {
+Blob_t xbeeHandleRx(MacPacket packet) {
 
     int i;
     unsigned char checksum;
@@ -126,34 +110,29 @@ void xbeeHandleRx(MacPacket packet) {
     unsigned char xb_frame_len = pld_len + XB_OVERHEAD_LENGTH;
     WordVal src_addr = packet->src_addr;
 
-    dmaTxReady = 0;
+    Blob_t xbeeFmt = blobCreate(pld_len + RX_FRAME_OFFSET);
+
     checksum = XB_API_ID;
     checksum += src_addr.byte.HB;
     checksum += src_addr.byte.LB;
 
-    //CRITICAL_SECTION_START
-        txBufferA[0] = XB_RX_START;     //Start Byte
-        txBufferA[1] = 0x00; 	        //Length High Byte
-        txBufferA[2] = xb_frame_len;	//Length Low Byte
-        txBufferA[3] = XB_API_ID;       //API Identifier - Currently only support the RX type
-        txBufferA[4] = src_addr.byte.HB;    //Source Address High byte
-        txBufferA[5] = src_addr.byte.LB;    //Source Address Low Byte
-        txBufferA[6] = radioGetLastRSSI();	        //'RSSI' Not currently implemented
-        txBufferA[7] = 0x00;            //'Options' Not currently implemented
+    xbeeFmt.data[0] = XB_RX_START; //Start Byte
+    xbeeFmt.data[1] = 0x00; //Length High Byte
+    xbeeFmt.data[2] = xb_frame_len; //Length Low Byte
+    xbeeFmt.data[3] = XB_API_ID; //API Identifier - Currently only support the RX type
+    xbeeFmt.data[4] = src_addr.byte.HB; //Source Address High byte
+    xbeeFmt.data[5] = src_addr.byte.LB; //Source Address Low Byte
+    xbeeFmt.data[6] = radioGetLastRSSI(); //'RSSI' Not currently implemented
+    xbeeFmt.data[7] = 0x00; //'Options' Not currently implemented
 
-        for(i = 0; i < pld_len; i++) {
-            checksum += pld_str[i];
-            txBufferA[RX_FRAME_OFFSET + i] = pld_str[i];
-        }
+    for (i = 0; i < pld_len; i++) {
+        checksum += pld_str[i];
+        xbeeFmt.data[RX_FRAME_OFFSET + i] = pld_str[i];
+    }
 
-        txBufferA[RX_FRAME_OFFSET + pld_len] = 0xFF - checksum;	//set Checksum byte
-    //CRITICAL_SECTION_END
+    xbeeFmt.data[RX_FRAME_OFFSET + pld_len] = 0xFF - checksum; //set Checksum byte
 
-    // pld_len + RX_FRAME_OFFSET + length(CHKSUM) - 1
-    DMA6CNT = pld_len + RX_FRAME_OFFSET;
-    DMA6CONbits.CHEN = 1;
-    DMA6REQbits.FORCE = 1;
-
+    return xbeeFmt;
 }
 
 
@@ -461,4 +440,38 @@ void xbeeRXStateMachine(unsigned char c){
         }
 
     }
+}
+
+// Xbee Task
+// This task will simply pipe packets from the Radio RX queue to the serial TX queue
+
+static portTASK_FUNCTION(vXBeeTask, pvParameters) {
+    portTickType xLastWakeTime;
+    xLastWakeTime = xTaskGetTickCount();
+    portBASE_TYPE xStatus;
+
+    MacPacket recvdRadioPacket;
+    Blob_t xbeeFmt;
+
+    for (;;) {
+        //Blocking read from radio packet queue
+        xStatus = xQueueReceive(radioRXQueue, &recvdRadioPacket, portMAX_DELAY);
+        //Send packet to be formatted to appears as an Xbee communication
+        xbeeFmt = xbeeHandleRx(recvdRadioPacket);
+        //As soon as we have a packet, push it onto the Serial TX queue, also blocking
+        xStatus = xQueueSendToBack( serialTXQueue, &xbeeFmt, portMAX_DELAY );
+        //Once the blob is safely in the serial queue, the data can be discarded
+        blobDestroy(xbeeFmt);
+        //TODO: Is yielding neccesary here?
+        //taskYIELD();
+    }
+}
+
+void vSerialStartTask(unsigned portBASE_TYPE uxPriority) {
+
+   radioRXQueue = radioGetRXQueueHandle();
+    serialTXQueue = serialGetTXQueueHandle();
+    //Create task
+    xTaskCreate(vXBeeTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+
 }

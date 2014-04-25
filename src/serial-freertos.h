@@ -8,9 +8,7 @@
 #ifndef SERIAL_FREERTOS_H
 #define	SERIAL_FREERTOS_H
 
-void SetupUART1(void);
-
-void vSerialStartTasks( unsigned portBASE_TYPE uxPriority);
+void vSerialStartTask( unsigned portBASE_TYPE uxPriority);
 
 #endif	/* SERIAL_FREERTOS_H */
 

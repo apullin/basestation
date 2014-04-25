@@ -6,35 +6,83 @@
  */
 
 #include<xc.h>
+//FreeRTOS includes
 #include "FreeRTOS.h"
 #include "task.h"
 #include "queue.h"
-
+#include "semphr.h"
+//Library includes
+#include <string.h> //for memcpy
 #include "serial-freertos.h"
-
 #include "utils.h"
 #include "uart.h"
+#include "blob.h"
 
-#define UART_TX_QUEUE_SIZE 128
-#define UART_RX_QUEUE_SIZE 128
+#define UART_TX_QUEUE_SIZE 8
+#define UART_RX_QUEUE_SIZE 32
 
 #define UART_TX_DMA_BUFFER_SIZE 128
 
 #define serialSTACK_SIZE				configMINIMAL_STACK_SIZE
 
-static portTASK_FUNCTION_PROTO(vSerialTask, pvParameters);
-
+//////////////////////////////////////////////////
+//////////      Private variables      ///////////
+//////////////////////////////////////////////////
 /* The queues used to communicate between tasks and ISR's. */
-static QueueHandle_t serialRXQueue;
-static QueueHandle_t serialTXQueue;
+static QueueHandle_t serialRXCharQueue;
+static QueueHandle_t serialTXBlobQueue;
+//Semaphore on UART DMA TX
+static SemaphoreHandle_t xUART_DMA_TX_Semaphore;
 
 //TODO: Semaphores on UART DMA TX buffers
 //TODO: Are two DMA TX buffers needed? Now that we have a FreeRTOS
 //      queue AND a TX buffer, maybe not
-unsigned char txBufferA[UART_TX_DMA_BUFFER_SIZE] __attribute__((space(dma)));
-unsigned char txBufferB[UART_TX_DMA_BUFFER_SIZE] __attribute__((space(dma)));
+unsigned char uart1DMABufferA[UART_TX_DMA_BUFFER_SIZE] __attribute__((space(dma)));
+//unsigned char txBufferB[UART_TX_DMA_BUFFER_SIZE] __attribute__((space(dma)));
 
-void SetupUART1(void) {
+
+//////////////////////////////////////////////////
+////////// Private function prototypes ///////////
+//////////////////////////////////////////////////
+void SetupUART1();
+void SetupDMAChannel();
+static portTASK_FUNCTION_PROTO(vSerialTask, pvParameters); //FreeRTOS task
+
+
+//////////////////////////////////////////////////
+////////// Public function definitions ///////////
+//////////////////////////////////////////////////
+
+void vSerialStartTask(unsigned portBASE_TYPE uxPriority) {
+    //Peripheral setup, including DMA
+    SetupUART1();
+
+    /* Create the queues used by the serial task. */
+    //serialTXQueue = xQueueCreate(UART_TX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( signed char));
+    //The TX queue is going to be explicitely built for MacPackets
+    serialTXBlobQueue = xQueueCreate(UART_TX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( Blob_t));
+    serialRXCharQueue = xQueueCreate(UART_RX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( signed char));
+
+    xUART_DMA_TX_Semaphore = xSemaphoreCreateBinary();
+
+    //Create task
+    //TODO: Should we two separate tasks, one for RX, one for TX?
+    xTaskCreate(vSerialTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+}
+
+QueueHandle_t serialGetTXQueueHandle() {
+    return serialTXBlobQueue;
+}
+
+QueueHandle_t serialGetRXQueueHandle() {
+    return serialRXCharQueue;
+}
+
+//////////////////////////////////////////////////
+////////// Private function definitions //////////
+//////////////////////////////////////////////////
+
+void SetupUART1() {
     /// UART1 for RS-232 w/PC @ 230400, 8bit, No parity, 1 stop bit
     unsigned int U1MODEvalue, U1STAvalue, U1BRGvalue;
     U1MODEvalue = UART_EN & UART_IDLE_CON & UART_IrDA_DISABLE &
@@ -50,10 +98,6 @@ void SetupUART1(void) {
     ConfigIntUART1(UART_TX_INT_EN & UART_TX_INT_PR4 & UART_RX_INT_EN &
             UART_RX_INT_PR4);
 
-    /* Create the queues used by the com test task. */
-    serialTXQueue = xQueueCreate(UART_TX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( signed char));
-    serialRXQueue = xQueueCreate(UART_RX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( signed char));
-
     /* It is assumed that this function is called prior to the scheduler being
     started.  Therefore interrupts must not be allowed to occur yet as they
     may attempt to perform a context switch. */
@@ -65,13 +109,42 @@ void SetupUART1(void) {
         cChar = U2RXREG;
     }
 
+    SetupDMAChannel();
+
 }
 
+void SetupDMAChannel(void) {
+
+    DMA6CON = 0x6001; // byte, one-shot, post-increment, RAM 2 Peripheral
+    DMA6CNT = 0;
+#if defined(__IMAGEPROC1) || defined(__BASESTATION)
+    DMA6REQ = 0x000C; //  select UART1 transmitter
+    DMA6PAD = (volatile unsigned int) &U1TXREG;
+#elif defined(__EXP16DEV) || defined(__BASESTATION2)
+    DMA6REQ = 0x001F; //  select UART2 transmitter
+    DMA6PAD = (volatile unsigned int) &U2TXREG;
+#else
+#error "UART/DMA is not defined on this project"
+#endif
+
+    DMA6STA = __builtin_dmaoffset(uart1DMABufferA);
+
+    IPC17bits.DMA6IP = 4;
+    IFS4bits.DMA6IF = 0; // clear DMA interrupt flag
+    IEC4bits.DMA6IE = 1; // enable DMA interrupt
+}
+
+//////////////////////////////////////////////////
+//////////          Interrupts          //////////
+//////////////////////////////////////////////////
 
 //UART recieve interrupt; contains entire state machine for xbee parsing
 //read data from the UART peripheral, and enqueue it
+//TODO: How to have the interrupt determined by bsp header? Compiler complains if U1RXInterrupt replcaed by a macro
+//void __attribute__((__interrupt__, auto_psv)) UART_RX_INTERRUPT(void) {
 
-void __attribute__((__interrupt__, auto_psv)) _UART_RX_INTERRUPT(void) {
+void __attribute__((__interrupt__, auto_psv)) _U1RXInterrupt(void) {
+
     char cChar;
     portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
 
@@ -81,7 +154,7 @@ void __attribute__((__interrupt__, auto_psv)) _UART_RX_INTERRUPT(void) {
     _U2RXIF = 0;
     while (U2STAbits.URXDA) {
         cChar = U2RXREG;
-        xQueueSendFromISR(serialRXQueue, &cChar, &xHigherPriorityTaskWoken);
+        xQueueSendFromISR(serialRXCharQueue, &cChar, &xHigherPriorityTaskWoken);
     }
 
     if (xHigherPriorityTaskWoken != pdFALSE) {
@@ -89,22 +162,44 @@ void __attribute__((__interrupt__, auto_psv)) _UART_RX_INTERRUPT(void) {
     }
 }
 
-void vAltStartComTestTasks(unsigned portBASE_TYPE uxPriority) {
-    //Peripheral setup
-    SetupUART1();
+void __attribute__((__interrupt__, no_auto_psv)) _DMA6Interrupt(void) {
+    static BaseType_t xHigherPriorityTaskWoken;
 
-    //Create task
-    //TODO: Should we two separate tasks, one for RX, one for TX?
-    xTaskCreate(vSerialTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+    IFS4bits.DMA6IF = 0; //clear the DMA6 interrupt flag
+
+    xSemaphoreGiveFromISR(xUART_DMA_TX_Semaphore, &xHigherPriorityTaskWoken);
+
+    if (xHigherPriorityTaskWoken != pdFALSE) {
+        // We can force a context switch here.  Context switching from an
+        // ISR uses port specific syntax.
+        taskYIELD();
+    }
+
 }
 
-static portTASK_FUNCTION(vSerialTask, pvParameters) {
-    //signed char cExpectedByte, cByteRxed;
-    //portBASE_TYPE xResyncRequired = pdFALSE, xErrorOccurred = pdFALSE;
 
-    //Pseudocode:
+//////////////////////////////////////////////////
+//////////        FreeRTOS Task         //////////
+//////////////////////////////////////////////////
+
+static portTASK_FUNCTION(vSerialTask, pvParameters) {
+
+    Blob_t xbeeFmt;
+    portBASE_TYPE xStatus;
 
     for (;;) {
+        //Get blob from serialTXQueue, blocking read
+        xStatus = xQueueReceive(serialTXBlobQueue, &xbeeFmt, portMAX_DELAY);
+        //Take UART DMA semaphore?
+        xSemaphoreTake(xUART_DMA_TX_Semaphore, portMAX_DELAY);
+        //Write blob to DMA
+        memcpy(uart1DMABufferA, xbeeFmt.data, xbeeFmt.length);
+        //Start DMA transfer
+        DMA6CNT = xbeeFmt.length;
+        DMA6CONbits.CHEN = 1;
+        DMA6REQbits.FORCE = 1;
+        //Take UART semaphore: blocks until end of DMA (DMA interrupt gives it back)
+        //xSemaphoreTake(xUART_DMA_TX_Semaphore, portMAX_DELAY);
 
     }
 }

@@ -21,15 +21,7 @@
 
 #define ANTENNA_DIVERSITY 0
 
-/////// System Service settings ///////
-//#define SYS_SERVICE_T1 // For legCtrl, hall
-//#define SYS_SERVICE_T4 // For IMU, 300Hz
-//#define SYS_SERVICE_T5 // For telemetry
-//#define SYS_SERVICE_T6 // For steerubg
-
 /////// Configuration options ///////
-//Configure project-wide for Hall Sensor operation
-//#define HALL_SENSORS
 
 //#define TELEM_TYPE orTelemStruct_t
 //#define TELEM_INCLUDE "or_telem.h"
@@ -37,7 +29,5 @@
 
 //Motor controller output routing
 // The leg controllers can be directed to different motor outputs from here
-//#define OCTOROACH_LEG1_MOTOR_CHANNEL 1
-//#define OCTOROACH_LEG2_MOTOR_CHANNEL 2
 
 #endif //__SETTINGS_H

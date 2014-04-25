@@ -24,11 +24,29 @@
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
                    projectFiles="true">
+      <logicalFolder name="FreeRTOS" displayName="FreeRTOS" projectFiles="true">
+        <logicalFolder name="Source" displayName="Source" projectFiles="true">
+          <logicalFolder name="include" displayName="include" projectFiles="true">
+          </logicalFolder>
+          <logicalFolder name="portable" displayName="portable" projectFiles="true">
+            <logicalFolder name="MemMang" displayName="MemMang" projectFiles="true">
+            </logicalFolder>
+            <logicalFolder name="MPLAB" displayName="MPLAB" projectFiles="true">
+              <logicalFolder name="PIC24_dsPIC" displayName="PIC24_dsPIC" projectFiles="true">
+                <itemPath>FreeRTOS/Source/portable/MPLAB/PIC24_dsPIC/port.c</itemPath>
+              </logicalFolder>
+            </logicalFolder>
+          </logicalFolder>
+          <itemPath>FreeRTOS/Source/list.c</itemPath>
+          <itemPath>FreeRTOS/Source/queue.c</itemPath>
+          <itemPath>FreeRTOS/Source/tasks.c</itemPath>
+          <itemPath>FreeRTOS/Source/timers.c</itemPath>
+        </logicalFolder>
+      </logicalFolder>
       <logicalFolder name="shared" displayName="imageproc-lib" projectFiles="true">
         <itemPath>../imageproc-lib/init_default.c</itemPath>
         <itemPath>../imageproc-lib/payload.c</itemPath>
         <itemPath>../imageproc-lib/radio.c</itemPath>
-        <itemPath>../imageproc-lib/queue.c</itemPath>
         <itemPath>../imageproc-lib/delay.s</itemPath>
         <itemPath>../imageproc-lib/at86rf231_driver.c</itemPath>
         <itemPath>../imageproc-lib/ppool.c</itemPath>
@@ -37,9 +55,12 @@
         <itemPath>../imageproc-lib/mac_packet.c</itemPath>
         <itemPath>../imageproc-lib/sclock.c</itemPath>
       </logicalFolder>
-      <itemPath>src/init.c</itemPath>
       <itemPath>src/xbee_handler.c</itemPath>
       <itemPath>src/traps.c</itemPath>
+      <itemPath>src/main_basestation_freertos.c</itemPath>
+      <itemPath>src/serial-freertos.c</itemPath>
+      <itemPath>src/blob.h</itemPath>
+      <itemPath>src/blob.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"

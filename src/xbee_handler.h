@@ -29,7 +29,7 @@
  *
  * Firmware for the Biomimetic Millisystems Lab 802.15.4 USB basestation.
  *
- * by Kevin Peterson
+ * by Kevin Peterson and Andrew Pullin
  *
  * v.00beta
  *
@@ -42,12 +42,13 @@
  * implementation Inter-PAN communication is not possible and all
  * addressing is 16-bit only.
  *
- * Usage:
- *  <SAMPLE USAGE>
  */
 
 #ifndef __XBEE_HANDLER_H
 #define __XBEE_HANDLER_H
+
+void vSerialStartTask( unsigned portBASE_TYPE uxPriority);
+
 
 /******************************************************************************
 * Function Name : xbeeHandleAt
@@ -78,7 +79,7 @@ void xbeeHandleTx(Payload rx_pld);
 * Return Value  : None
 *******************************************************************************/
 //void xbeeHandleRx(void);
-void xbeeHandleRx(MacPacket packet);
+Blob_t xbeeHandleRx(MacPacket packet);
 
 
 /******************************************************************************
@@ -105,7 +106,5 @@ void xbeeHandleATR(unsigned char frame_id, WordVal command, unsigned char *data,
 * Return Value  : None
 *******************************************************************************/
 void sendUART(unsigned char *frame_header, unsigned char *data, unsigned char length);
-
-void xbSetupDma(void);
 
 #endif
