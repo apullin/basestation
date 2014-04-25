@@ -55,14 +55,15 @@
 #include "generic_typedefs.h"
 #include "init_default.h"
 #include "utils.h"
-#include "init.h"
-#include "uart.h"
+
+#include "serial-freertos.h"
+
 #include "mac_packet.h"
 #include "radio.h"   //for radio stack calls
 #include "payload.h"
 #include <stdio.h>
 #include "xbee_constants.h"
-#include "xbee_handler.h"
+#include "xbee_handler_freertos.h"
 #include "at86rf231_driver.h" //for TRX calls
 #include "blob.h"
 
@@ -152,6 +153,29 @@ void sendUART(unsigned char *frame_header, unsigned char *data, unsigned char le
 ////////// Public function definitions ///////////
 //////////////////////////////////////////////////
 
+void vXbeeHandlerStartTasks(unsigned portBASE_TYPE uxPriority) {
+
+    //Retrieve queue handles
+    radioRXQueue = radioGetRXQueueHandle();
+    radioTXQueue = radioGetTXQueueHandle();
+    serialTXBlobQueue = serialGetTXQueueHandle();
+    serialRXCharQueue = serialGetRXQueueHandle();
+    //TODO: check here is handles are OK? Tasks must be started in the right order
+
+    //Create task
+    //vXBeeRXTask takes packets coming into the radio, turns them into Xbee
+    // formatted data blobs for UART.
+    xTaskCreate(vXBeeRXTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+    //xXBeeTXTask takes characters from the serial RX queue and advances
+    // the XbeeRX state machine, which handles AT, ATR, and sending operations
+    xTaskCreate(vXBeeTXTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+
+}
+
+//////////////////////////////////////////////////
+///////// Private function definitions ///////////
+//////////////////////////////////////////////////
+
 //Recieved radio packet, send over UART
 Blob_t xbeeHandleRX(MacPacket packet) {
 
@@ -189,6 +213,7 @@ Blob_t xbeeHandleRX(MacPacket packet) {
 
 
 //Recieved UART Xbee packet, send packet out over the radio
+//TODO: FREERTOS, change how radio packet is enqueued
 void xbeeHandleTX(Payload uart_pld){
 
     MacPacket tx_packet;
@@ -314,76 +339,54 @@ void xbeeHandleAT(Payload rx_pld)
     }
 }
 
-//Handle a Rx packet and pass it to the sendUART function
-/*void xbeeHandleRx()
-{
-    MacPacket rx_packet;
-    unsigned char frame_header[5];
-
-    rx_packet = radioDequeueRxPacket();
-
-    frame_header[RX_API_POS] = RX_16BIT;
-
-    frame_header[RX_SRC_ADR_HB_POS] = rx_packet->src_addr.byte.HB;
-    frame_header[RX_SRC_ADR_LB_POS] = rx_packet->src_addr.byte.LB;
-
-    frame_header[RX_RSSI_POS] = phyReadRSSI();
-    frame_header[RX_OPTIONS_POS] = 0x00;
-
-    CRITICAL_SECTION_START
-        //Start Byte
-        while(BusyUART1());
-        WriteUART1(RX_START);
-
-        //Length High Byte
-        while(BusyUART1());
-        WriteUART1(0x00);
-
-        //Length Low Byte
-        while(BusyUART1());
-        WriteUART1(payGetPayloadLength(rx_packet->payload)+FRAME_HEADER_LEN);
-
-        sendUART(frame_header, rx_packet->payload->pld_data,payGetPayloadLength(rx_packet->payload));
-
-        payDelete(rx_packet->payload);
-        macDeletePacket(rx_packet);
-
-    CRITICAL_SECTION_END
-}
-*/
 
 //Handle an AT response packet and pass it to the sendUART function
 void xbeeHandleATR(unsigned char frame_id, WordVal command, unsigned char *data, unsigned char length)
 {
-    unsigned char frame_header[5];
+#define PREDATA_OFFSET 3
+    //Total length:
+    //  1 start byte
+    //  1 length high byte = 0
+    //  1 length low byte  = length+FRAME_HEADER_LEN
+    //  5 header bytes
+    //  #length data bytes
+    //  1 CRC byte
+    //  Total: 3 + FRAME_HEADER_LEN + length + 1
+    Blob_t response = blobCreate(PREDATA_OFFSET + FRAME_HEADER_LEN + length + 1);
 
-    frame_header[RX_API_POS] = AT_RESPONSE;
+    //Pre-data bytes
+    response.data[0] = RX_START;
+    response.data[1] = 0x00;                      //Length high byte
+    response.data[2] = length + FRAME_HEADER_LEN; //Length low byte
+    //Message portion
+    response.data[RX_API_POS + PREDATA_OFFSET] = AT_RESPONSE;
+    response.data[ATR_FRAME_ID_POS + PREDATA_OFFSET] = frame_id;
+    response.data[ATR_COMMAND_HB_POS + PREDATA_OFFSET] = command.byte.HB;
+    response.data[ATR_COMMAND_LB_POS + PREDATA_OFFSET] = command.byte.LB;
+    response.data[ATR_STATUS_POS + PREDATA_OFFSET] = 0x00;
 
-    frame_header[ATR_FRAME_ID_POS] = frame_id;
-    frame_header[ATR_COMMAND_HB_POS] = command.byte.HB;
+    //Copy data from passed pointer into a blob to enqueue for serial TX
+    memcpy(response.data + ATR_STATUS_POS + PREDATA_OFFSET + 1, data, length);
 
-    frame_header[ATR_COMMAND_LB_POS] = command.byte.LB;
-    frame_header[ATR_STATUS_POS] = 0x00;
+    //Calculate CRC
+    //CRC is over frame header and all data
+    unsigned char checksum = 0;
+    int i;
+    for(i = PREDATA_OFFSET; i < PREDATA_OFFSET + length; i++){
+        checksum += response[i];
+    }
+    //Set last byte of blob to checksum value
+    response.data[response.length - 1] = 0xff - checksum;
+    //response.data[ATR_STATUS_POS + 3 + 1 + length] = 0xff - checksum;
 
-    CRITICAL_SECTION_START
-        //Start Byte
-        while(BusyUART1());
-        WriteUART1(RX_START);
-
-        //Length High Byte
-        while(BusyUART1());
-        WriteUART1(0x00);
-
-        //Length Low Byte
-        while(BusyUART1());
-        WriteUART1(length+FRAME_HEADER_LEN);
-
-        sendUART(frame_header, data, length);
-
-    CRITICAL_SECTION_END
+    //Enqueue blob for TX
+    portBASE_TYPE xStatus;
+    xStatus = xQueueSendToBack( serialTXQueue, &response, portMAX_DELAY );
+    blobDestroy(response);
 }
 
 //General UART send function
+/*
 void sendUART(unsigned char *frame_header, unsigned char *data, unsigned char length)
 {
     int i;
@@ -410,7 +413,7 @@ void sendUART(unsigned char *frame_header, unsigned char *data, unsigned char le
     while(BusyUART1());
     WriteUART1(0xFF - checksum);
 }
-
+*/
 
 void xbeeRXStateMachine(unsigned char c){
 
@@ -494,9 +497,14 @@ void xbeeRXStateMachine(unsigned char c){
     }
 }
 
-// Xbee Task
-// This task will simply pipe packets from the Radio RX queue to the serial TX queue
 
+//////////////////////////////////////////////////
+/////////        FreeRTOS Tasks        ///////////
+//////////////////////////////////////////////////
+
+// Xbee RX Task:
+// This task will simply take packets from the radio RX queue, format them
+// into Xbee transactions, and send them serial queue.
 static portTASK_FUNCTION(vXBeeRXTask, pvParameters) {
     portTickType xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
@@ -519,6 +527,9 @@ static portTASK_FUNCTION(vXBeeRXTask, pvParameters) {
     }
 }
 
+//Xbee TX Task:
+// This task will will proccess the serial RX queue of characters, and advance
+// the state machine for reciving and parsing packets, or responding to AT/ATR
 static portTASK_FUNCTION(vXBeeTXTask, pvParameters) {
     portTickType xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
@@ -536,21 +547,3 @@ static portTASK_FUNCTION(vXBeeTXTask, pvParameters) {
     }
 }
 
-void vXbeeHandlerStartTasks(unsigned portBASE_TYPE uxPriority) {
-
-    //Retrieve queue handles
-    radioRXQueue = radioGetRXQueueHandle();
-    radioTXQueue = radioGetTXQueueHandle();
-    serialTXBlobQueue = serialGetTXQueueHandle();
-    serialRXCharQueue = serialGetRXQueueHandle();
-    //TODO: check here is handles are OK? Tasks must be started in the right order
-
-    //Create task
-    //vXBeeRXTask takes packets coming into the radio, turns them into Xbee
-    // formatted data blobs for UART.
-    xTaskCreate(vXBeeRXTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
-    //xXBeeTXTask takes characters from the serial RX queue and advances
-    // the XbeeRX state machine, which handles AT, ATR, and sending operations
-    xTaskCreate(vXBeeTXTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
-
-}
