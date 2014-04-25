@@ -47,64 +47,7 @@
 #ifndef __XBEE_HANDLER_H
 #define __XBEE_HANDLER_H
 
-void vSerialStartTask( unsigned portBASE_TYPE uxPriority);
+void vXbeeHandlerStartTasks( unsigned portBASE_TYPE uxPriority);
 
-
-/******************************************************************************
-* Function Name : xbeeHandleAt
-* Description   : Read the AT command byte and perform the appropriate action
-* Parameters    : A payload received from the UART/Python
-* Return Value  : None
-*******************************************************************************/
-void xbeeHandleAt(Payload rx_pld);
-
-
-
-/******************************************************************************
-* Function Name : xbeeHandleTx
-* Description   : Take a payload received over the UART, package it and send
-*                 over the radio
-* Parameters    : A payload received from the UART/Python
-* Return Value  : None
-*******************************************************************************/
-void xbeeHandleTx(Payload rx_pld);
-
-
-
-/******************************************************************************
-* Function Name : xbeeHandleRx
-* Description   : Retrieve a packet from the radio, put it in the correct format
-*                 and pass it along the UART
-* Parameters    : 
-* Return Value  : None
-*******************************************************************************/
-//void xbeeHandleRx(void);
-Blob_t xbeeHandleRx(MacPacket packet);
-
-
-/******************************************************************************
-* Function Name : xbeeHandleATR
-* Description   : Create a AT response packet and send it over the UART
-* Parameters    : frame_id: pass the frame id from Python back to allow syncing
-*                 this packet with the request
-*                 command: The command executed by the AT packet
-*                 *data: a pointer to an array with the requested return values
-*                 length: the number of bytes in *data to send
-* Return Value  : None
-*******************************************************************************/
-void xbeeHandleATR(unsigned char frame_id, WordVal command, unsigned char *data, unsigned char length);
-
-
-
-/******************************************************************************
-* Function Name : sendUART
-* Description   : Send a frame header and payload over the UART
-* Parameters    : frame_header: a 5 byte header for sending UART packets in xbee
-*                 format
-*                 data: any additional payload to be sent
-*                 length: length of the data array
-* Return Value  : None
-*******************************************************************************/
-void sendUART(unsigned char *frame_header, unsigned char *data, unsigned char length);
 
 #endif

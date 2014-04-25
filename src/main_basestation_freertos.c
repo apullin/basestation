@@ -66,43 +66,76 @@
 #include "settings.h"
 #include "sclock.h"
 
-/* Standard includes. */
-#include <stdio.h>
+/* Demo task priorities. */
+#define mainRADIO_TASK_PRIORITY                         ( tskIDLE_PRIORITY + 4 )
+#define mainSERIAL_TASK_PRIORITY			( tskIDLE_PRIORITY + 3 )
+#define mainXBEEHANDLER_TASK_PRIORITY			( tskIDLE_PRIORITY + 2 )
 
-void init(void);
+// Task prototypes
+//static void vToggleLED1(void *pvParameters);
+
+//Private function prototypes
+static void prvSetupHardware(void);
+void prvStartupLights(void);
+
+unsigned long ulIdleCycleCount = 0UL;
 
 int main(void) {
-    init();
+    /* Perform any hardware setup necessary. */
+    prvSetupHardware();
 
-    MacPacket packet;
-    Payload pld;
-    unsigned char command, status;
+    //////  Create tasks  //////
 
-    while (1) {
+    //The serial task will manage all operations into and out of the UART.
+    // DMA is used for TX, so datagrams of the Blob_t are enqueued for send.
+    //NOTE: task does not currently support sending datagrams of more than the
+    //DMA buffer size.
+    //TODO: implement large datagram send, blob.size > DMA_BUFFER_SIZE
+    vSerialStartTask(mainSERIAL_TASK_PRIORITY);
 
-        //Packet into from radio, send to UART
-        if (!radioRxQueueEmpty()) {
-            if ((packet = radioDequeueRxPacket()) != NULL) {
-                pld = macGetPayload(packet);
-                status = payGetStatus(pld);
-                command = payGetType(pld);  // For debugging only
-                xbeeHandleRx(packet);
-                LED_BLU ^= 1;
-                radioReturnPacket(packet);
-            }    
-        }
+    //The Radio task will handle all RX and TX through the radio transceiver.
+    //vRadioStartTask(mainRADIO_TASK_PRIORITY);
 
-        //Packet from UART, to be sent over raido
-        if (!radioTxQueueEmpty()) {
-            radioProcess();
-            //xbeeHandleTx(uart_pld);
-            //xbeeHandleTx is called when we hit the end of a packet over UART, in the UART1 interrupt
-            LED_RED ^= 1;
-        }
+    //The xbee handler task will take incoming packets from the radio, format
+    // them as Xbee protocol packets, and push them onto the serial task queue
+    // This task must be started last, as it gets the handles for the radio RX
+    // queue and the serial TX queue
+    vXbeeHandlerStartTasks(mainXBEEHANDLER_TASK_PRIORITY);
 
-        //radioProcess();
-        
-    }
+
+    //Startup indicator cycle with LEDs
+    prvStartupLights();
+
+    /* Start the created tasks running. */
+    vTaskStartScheduler();
+    /* Execution will only reach here if there was insufficient heap to
+    start the scheduler. */
+    for (;;);
+    return 0;
+}
+
+
+void prvSetupHardware(void){
+    SetupClock();   //from imageproc-lib , config PLL
+    SetupPorts();   //from imageproc-lib, set up LATn, TRISn, etc , requires __IMAGEPROC2
+    SwitchClocks(); //from imageproc-lib , switch to PLL clock
+    sclockSetup();
+
+    radioInit(RADIO_TXPQ_MAX_SIZE, RADIO_RXPQ_MAX_SIZE);
+    radioSetChannel(RADIO_CHANNEL);
+    radioSetSrcPanID(RADIO_PAN_ID);
+    radioSetSrcAddr(RADIO_SRC_ADDR);
+    //atSetAntDiversity(ANTENNA_DIVERSITY);
+}
+
+/* Idle hook functions MUST be called vApplicationIdleHook(), take no parameters,
+and return void. */
+void vApplicationIdleHook(void) {
+    /* This hook function does nothing but increment a counter. */
+    ulIdleCycleCount++;
+    Idle();  //dsPIC idle function; CPU core off, wakes on any interrupt
+    //portSWITCH_CONTEXT();
+    taskYIELD();
 }
 
 void prvStartupLights(void) {
@@ -118,90 +151,4 @@ void prvStartupLights(void) {
         LED_BLU = ~LED_BLU;
         delay_ms(30);
     }
-
-    SetupUART1();
-    xbSetupDma();
-    SetupInterrupts();
-    //EnableIntU1TX;  //Now done by DMA
-    EnableIntU1RX;
-
-    //Set this if the electronics for Ant diversity are installed
-    //atSetAntDiversity(ANTENNA_DIVERSITY);
-}
-
-
-//It is unclear if this interrupt is needed;
-//The CPU seemed to get stuck without it declared.
-void __attribute__((__interrupt__, no_auto_psv)) _U1TXInterrupt(void)
-{
-    _U1TXIF = 0;
-}
-
-
-
-
-// Task prototypes
-//static void vToggleLED1(void *pvParameters);
-
-//Private function prototypes
-static void prvSetupHardware(void);
-
-unsigned long ulIdleCycleCount = 0UL;
-
-int main(void) {
-    /* Perform any hardware setup necessary. */
-    prvSetupHardware();
-
-    // Create tasks
-    xTaskCreate(vXBeeHandlerTask, /* Pointer to the function that implements the task. */
-            "Task 1", /* Text name for the task. This is to facilitate debugging. */
-            240, /* Stack depth in words. */
-            NULL, /* We are not using the task parameter. */
-            1, /* This task will run at priority 1. */
-            NULL); /* We are not going to use the task handle. */
-
-    /* Start the created tasks running. */
-    vTaskStartScheduler();
-    /* Execution will only reach here if there was insufficient heap to
-    start the scheduler. */
-    for (;;);
-    return 0;
-}
-
-
-
-
-void prvSetupHardware(void){
-    SetupClock();   //from imageproc-lib , config PLL
-    SetupPorts();   //from imageproc-lib, set up LATn, TRISn, etc , requires __IMAGEPROC2
-    SwitchClocks(); //from imageproc-lib , switch to PLL clock
-    sclockSetup();
-
-    radioInit(RADIO_TXPQ_MAX_SIZE, RADIO_RXPQ_MAX_SIZE);
-    radioSetChannel(RADIO_CHANNEL);
-    radioSetSrcPanID(RADIO_PAN_ID);
-    radioSetSrcAddr(RADIO_SRC_ADDR);
-    
-}
-
-//This task code is retained here as a template for other tasks
-/*
-vToggleLED1(void *pvParameters) {
-    portTickType xLastWakeTime;
-    xLastWakeTime = xTaskGetTickCount();
-    
-    for (;;) {
-        LED_1 = ~LED_1; //Toggle LED #1 (color?)
-        vTaskDelayUntil(&xLastWakeTime, (1000 / portTICK_RATE_MS));
-    }
-}
-*/
-
-/* Idle hook functions MUST be called vApplicationIdleHook(), take no parameters,
-and return void. */
-void vApplicationIdleHook(void) {
-    /* This hook function does nothing but increment a counter. */
-    ulIdleCycleCount++;
-    Idle();  //dsPIC idle function; CPU core off, wakes on any interrupt
-    portSWITCH_CONTEXT();
 }

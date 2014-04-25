@@ -162,6 +162,16 @@ void __attribute__((__interrupt__, auto_psv)) _U1RXInterrupt(void) {
     }
 }
 
+
+
+//It is unclear if this interrupt is needed;
+//The CPU seemed to get stuck without it declared.
+void __attribute__((__interrupt__, no_auto_psv)) _U1TXInterrupt(void)
+{
+    _U1TXIF = 0;
+}
+
+//DMA Channel 6 for UART TX
 void __attribute__((__interrupt__, no_auto_psv)) _DMA6Interrupt(void) {
     static BaseType_t xHigherPriorityTaskWoken;
 

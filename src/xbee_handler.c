@@ -86,14 +86,66 @@
 //////////////////////////////////////////////////
 //////////      Private variables      ///////////
 //////////////////////////////////////////////////
-static QueueHandle_t serialTXQueue;
+static QueueHandle_t serialRXCharQueue;
+static QueueHandle_t serialTXBlobQueue;
 static QueueHandle_t radioRXQueue;
-
+static QueueHandle_t radioTXQueue;
 
 //////////////////////////////////////////////////
 ////////// Private function prototypes ///////////
 //////////////////////////////////////////////////
-static portTASK_FUNCTION_PROTO(vXBeeTask, pvParameters);
+static portTASK_FUNCTION_PROTO(vXBeeRXTask, pvParameters);
+static portTASK_FUNCTION_PROTO(vXBeeTXTask, pvParameters);
+
+/******************************************************************************
+* Function Name : xbeeHandleAt
+* Description   : Read the AT command byte and perform the appropriate action
+* Parameters    : A payload received from the UART/Python
+* Return Value  : None
+*******************************************************************************/
+void xbeeHandleAT(Payload rx_pld);
+
+/******************************************************************************
+* Function Name : xbeeHandleTx
+* Description   : Take a payload received over the UART, package it and send
+*                 over the radio
+* Parameters    : A payload received from the UART/Python
+* Return Value  : None
+*******************************************************************************/
+void xbeeHandleTX(Payload rx_pld);
+
+/******************************************************************************
+* Function Name : xbeeHandleRx
+* Description   : Retrieve a packet from the radio, put it in the correct format
+*                 and pass it along the UART
+* Parameters    :
+* Return Value  : None
+*******************************************************************************/
+Blob_t xbeeHandleRX(MacPacket packet);
+
+/******************************************************************************
+* Function Name : xbeeHandleATR
+* Description   : Create a AT response packet and send it over the UART
+* Parameters    : frame_id: pass the frame id from Python back to allow syncing
+*                 this packet with the request
+*                 command: The command executed by the AT packet
+*                 *data: a pointer to an array with the requested return values
+*                 length: the number of bytes in *data to send
+* Return Value  : None
+*******************************************************************************/
+void xbeeHandleATR(unsigned char frame_id, WordVal command, unsigned char *data, unsigned char length);
+
+/******************************************************************************
+* Function Name : sendUART
+* Description   : Send a frame header and payload over the UART
+* Parameters    : frame_header: a 5 byte header for sending UART packets in xbee
+*                 format
+*                 data: any additional payload to be sent
+*                 length: length of the data array
+* Return Value  : None
+*******************************************************************************/
+void sendUART(unsigned char *frame_header, unsigned char *data, unsigned char length);
+
 
 
 //////////////////////////////////////////////////
@@ -101,7 +153,7 @@ static portTASK_FUNCTION_PROTO(vXBeeTask, pvParameters);
 //////////////////////////////////////////////////
 
 //Recieved radio packet, send over UART
-Blob_t xbeeHandleRx(MacPacket packet) {
+Blob_t xbeeHandleRX(MacPacket packet) {
 
     int i;
     unsigned char checksum;
@@ -137,7 +189,7 @@ Blob_t xbeeHandleRx(MacPacket packet) {
 
 
 //Recieved UART Xbee packet, send packet out over the radio
-void xbeeHandleTx(Payload uart_pld){
+void xbeeHandleTX(Payload uart_pld){
 
     MacPacket tx_packet;
     WordVal dst_addr;
@@ -172,7 +224,7 @@ void xbeeHandleTx(Payload uart_pld){
 
 }
 
-void xbeeHandleAt(Payload rx_pld)
+void xbeeHandleAT(Payload rx_pld)
 {
     unsigned char frame;
     unsigned char length;
@@ -411,11 +463,11 @@ void xbeeRXStateMachine(unsigned char c){
                     switch (packet_type)
                     {
                         case AT_COMMAND_MODE:
-                            xbeeHandleAt(uart_pld);
+                            xbeeHandleAT(uart_pld);
                             break;
 
                         case TX_16BIT:
-                            xbeeHandleTx(uart_pld);
+                            xbeeHandleTX(uart_pld);
                             break;
 
                         default:
@@ -445,7 +497,7 @@ void xbeeRXStateMachine(unsigned char c){
 // Xbee Task
 // This task will simply pipe packets from the Radio RX queue to the serial TX queue
 
-static portTASK_FUNCTION(vXBeeTask, pvParameters) {
+static portTASK_FUNCTION(vXBeeRXTask, pvParameters) {
     portTickType xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
     portBASE_TYPE xStatus;
@@ -457,7 +509,7 @@ static portTASK_FUNCTION(vXBeeTask, pvParameters) {
         //Blocking read from radio packet queue
         xStatus = xQueueReceive(radioRXQueue, &recvdRadioPacket, portMAX_DELAY);
         //Send packet to be formatted to appears as an Xbee communication
-        xbeeFmt = xbeeHandleRx(recvdRadioPacket);
+        xbeeFmt = xbeeHandleRX(recvdRadioPacket);
         //As soon as we have a packet, push it onto the Serial TX queue, also blocking
         xStatus = xQueueSendToBack( serialTXQueue, &xbeeFmt, portMAX_DELAY );
         //Once the blob is safely in the serial queue, the data can be discarded
@@ -467,11 +519,38 @@ static portTASK_FUNCTION(vXBeeTask, pvParameters) {
     }
 }
 
-void vSerialStartTask(unsigned portBASE_TYPE uxPriority) {
+static portTASK_FUNCTION(vXBeeTXTask, pvParameters) {
+    portTickType xLastWakeTime;
+    xLastWakeTime = xTaskGetTickCount();
+    portBASE_TYPE xStatus;
 
-   radioRXQueue = radioGetRXQueueHandle();
-    serialTXQueue = serialGetTXQueueHandle();
+    char cChar;
+
+    for (;;) {
+        //Blocking read from serial char RX queue
+        xStatus = xQueueReceive(serialTXCharQueue, &cChar, portMAX_DELAY);
+        xbeeRXStateMachine(cChar);
+
+        //TODO: Is yielding neccesary here?
+        //taskYIELD();
+    }
+}
+
+void vXbeeHandlerStartTasks(unsigned portBASE_TYPE uxPriority) {
+
+    //Retrieve queue handles
+    radioRXQueue = radioGetRXQueueHandle();
+    radioTXQueue = radioGetTXQueueHandle();
+    serialTXBlobQueue = serialGetTXQueueHandle();
+    serialRXCharQueue = serialGetRXQueueHandle();
+    //TODO: check here is handles are OK? Tasks must be started in the right order
+
     //Create task
-    xTaskCreate(vXBeeTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+    //vXBeeRXTask takes packets coming into the radio, turns them into Xbee
+    // formatted data blobs for UART.
+    xTaskCreate(vXBeeRXTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+    //xXBeeTXTask takes characters from the serial RX queue and advances
+    // the XbeeRX state machine, which handles AT, ATR, and sending operations
+    xTaskCreate(vXBeeTXTask, (const char *) "SerialTask", serialSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
 
 }
