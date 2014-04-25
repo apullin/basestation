@@ -44,8 +44,8 @@
  *
  */
 
-#ifndef __XBEE_HANDLER_H
-#define __XBEE_HANDLER_H
+#ifndef __XBEE_HANDLER_FREERTOS_H
+#define __XBEE_HANDLER_FREERTOS_H
 
 void vXbeeHandlerStartTasks( unsigned portBASE_TYPE uxPriority);
 

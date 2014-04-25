@@ -63,7 +63,7 @@
 #include "payload.h"
 #include <stdio.h>
 #include "xbee_constants.h"
-#include "xbee_handler_freertos.h"
+#include "xbee_handler-freertos.h"
 #include "at86rf231_driver.h" //for TRX calls
 #include "blob.h"
 
