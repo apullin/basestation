@@ -52,7 +52,6 @@
         <itemPath>../imageproc-lib/delay.s</itemPath>
         <itemPath>../imageproc-lib/at86rf231_driver.c</itemPath>
         <itemPath>../imageproc-lib/ppool.c</itemPath>
-        <itemPath>../imageproc-lib/spi_controller.c</itemPath>
         <itemPath>../imageproc-lib/carray.c</itemPath>
         <itemPath>../imageproc-lib/mac_packet.c</itemPath>
         <itemPath>../imageproc-lib/sclock.c</itemPath>

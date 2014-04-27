@@ -64,6 +64,11 @@
 
 #define SPIC_NUM_PORTS             (2)
 
+enum xSPI_CHANNEL{
+    xSPI_CHANNEL_1,
+    xSPI_CHANNEL_2
+};
+
 /** Interrupt sources */
 typedef enum {
     SPIC_TRANS_SUCCESS, /** Successful transceive */
@@ -164,7 +169,7 @@ unsigned int spic1ReadBuffer(unsigned int len, unsigned char *buff);
  *
  * @param handler Function pointer to interrupt handler
  */
-void spic2SetCallback(unsigned char cs, SpicIrqHandler);
+//void spic2SetCallback(unsigned char cs, SpicIrqHandler);
 
 /**
  * Begin a transaction on port 2.

@@ -189,7 +189,7 @@ void spic1EndTransaction(void) {
 
     // Only one CS line
     SPI1_CS = SPI_CS_IDLE;  // Idle chip select after freeing since may cause irq
-    xSemaphoreGiveFromISR(xSPI_CHAN_1, &xHigherPriorityTaskWoken);
+    xSemaphoreGiveFromISR(xSPI_CHANNEL_1, &xHigherPriorityTaskWoken);
 
     if (xHigherPriorityTaskWoken != pdFALSE) {
         // We can force a context switch here.  Context switching from an
@@ -207,7 +207,7 @@ void spic2EndTransaction(void) {
     if (port_cs_line[1] == 1)
       SPI2_CS2 = SPI_CS_IDLE;  // Idle chip select
 
-    xSemaphoreGiveFromISR(xSPI_CHAN_2, &xHigherPriorityTaskWoken);
+    xSemaphoreGiveFromISR(xSPI_CHANNEL_2, &xHigherPriorityTaskWoken);
 
     if (xHigherPriorityTaskWoken != pdFALSE) {
         // We can force a context switch here.  Context switching from an
@@ -224,7 +224,7 @@ void spic1Reset(void) {
     SPIC1_DMAW_CONbits.CHEN = 0;
     SPI1STATbits.SPIROV = 0;        // Clear overwrite bit
     //spi_port_ch2_unlock();          // Release lock on channel
-    xSemaphoreGive(xSPI_CHAN_1);    //May return failure
+    xSemaphoreGive(xSPI_CHANNEL_1);    //May return failure
 
 }
 
@@ -235,7 +235,7 @@ void spic2Reset(void) {
     SPIC2_DMAR_CONbits.CHEN = 0;    // Disable DMA module
     SPIC2_DMAW_CONbits.CHEN = 0;
     SPI2STATbits.SPIROV = 0;
-    xSemaphoreGive(xSPI_CHAN_2);    //May return failure
+    xSemaphoreGive(xSPI_CHANNEL_2);    //May return failure
 
 }
 
@@ -376,7 +376,7 @@ unsigned int spic2ReadBuffer(unsigned int len, unsigned char *buff) {
 void __attribute__((interrupt, no_auto_psv)) _DMA2Interrupt(void) {
 
     // Call registered callback function
-    xSemaphoreGive(xSPI_CHAN_1);
+    xSemaphoreGive(xSPI_CHANNEL_1);
     //int_handler_ch1[port_cs_line[0]](SPIC_TRANS_SUCCESS);
     _DMA2IF = 0;
 
@@ -384,7 +384,7 @@ void __attribute__((interrupt, no_auto_psv)) _DMA2Interrupt(void) {
 
 // ISR for DMA3 interrupt, currently DMAW for channel 1
 void __attribute__((interrupt, no_auto_psv)) _DMA3Interrupt(void) {
-    xSemaphoreGive(xSPI_CHAN_1);
+    xSemaphoreGive(xSPI_CHANNEL_1);
     _DMA3IF = 0;
 
 }
@@ -393,7 +393,7 @@ void __attribute__((interrupt, no_auto_psv)) _DMA3Interrupt(void) {
 void __attribute__((interrupt, no_auto_psv)) _DMA4Interrupt(void) {
 
     // Call registered callback function
-    xSemaphoreGive(xSPI_CHAN_2);
+    xSemaphoreGive(xSPI_CHANNEL_2);
     //int_handler_ch2[port_cs_line[1]](SPIC_TRANS_SUCCESS);
     _DMA4IF = 0;
 
@@ -403,7 +403,7 @@ void __attribute__((interrupt, no_auto_psv)) _DMA4Interrupt(void) {
 // Currently not used, though it may be useful for debugging
 void __attribute__((interrupt, no_auto_psv)) _DMA5Interrupt(void) {
 
-    xSemaphoreGive(xSPI_CHAN_2);
+    xSemaphoreGive(xSPI_CHANNEL_2);
     _DMA5IF = 0;
 
 }
@@ -492,4 +492,25 @@ static void setupDMASet2 (void)
     SetPriorityIntDMA5(priority);
     DisableIntDMA5; // Only need one of the DMA interrupts
     _DMA5IF  = 0;   // Clear DMA interrupt
+}
+
+void vSPIStartTask(unsigned portBASE_TYPE uxPriority) {
+    //Peripheral setup, including DMA
+    //SetupUART1();
+
+    /* Create the queues used by the serial task. */
+    //serialTXQueue = xQueueCreate(UART_TX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( signed char));
+    //The TX queue is going to be explicitely built for MacPackets
+    //serialTXBlobQueue = xQueueCreate(UART_TX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( Blob_t));
+    //serialRXCharQueue = xQueueCreate(UART_RX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( signed char));
+
+    xSPI_CHAN1_Semaphore = xSemaphoreCreateBinary();
+    xSPI_CHAN2_Semaphore = xSemaphoreCreateBinary();
+
+    //Create task
+    //TODO: Should we two separate tasks, one for RX, one for TX?
+    xTaskCreate(vSPITask, (const char *) "SPITask", spiSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+
+    //Enable UART interrupts
+    //ConfigIntUART1( UART_RX_INT_EN & UART_RX_INT_PR4);
 }
