@@ -54,6 +54,7 @@
 #include "dma.h"
 #include "init_default.h"
 #include "utils.h"
+#include "blob.h"
 
 #include <string.h>
 
@@ -81,8 +82,6 @@
 
 #define SPIC2_RX_BUFF_LEN       (528) // Flash page is 264/528 bytes
 #define SPIC2_TX_BUFF_LEN       (528) // Currently not in use
-
-#define US_TO_TICKS(X)          ((X*10)/16) // Microseconds to cycles with 64:1 prescale
 
 #define SPI_CS_ACTIVE           (0)
 #define SPI_CS_IDLE             (1)
@@ -347,18 +346,37 @@ unsigned int spic2MassTransmit(unsigned int len, unsigned char *buff, unsigned i
 
 }
 
-unsigned int spic1ReadBuffer(unsigned int len, unsigned char *buff) {
+unsigned int spicReadBuffer(unsigned int channel, unsigned int len, QueueHandle_t recvQueue) {
 
-    // Make sure requested length is in range
-    if(len > SPIC1_RX_BUFF_LEN) {
-        len = SPIC1_RX_BUFF_LEN;
+    Blob_t blob;
+    unsigned int maxLength;
+    
+    if( channel == 1){
+        maxLength = SPIC1_RX_BUFF_LEN;
+        blob.data = spic1_rx_buff;
+    }
+    else if (channel ==2){
+        maxLength = SPIC2_RX_BUFF_LEN;
+        blob.data = spic2_rx_buff;
     }
 
-    memcpy(buff, spic1_rx_buff, len);   // Read DMA buffer contents into buffer
-    return len;
+    // Make sure requested length is in range
+    if(len > maxLength) {
+        len = maxLength;
+    }
+    
+    //Set corrected length
+    blob.length = len;
+    
+    portBASE_TYPE xStatus;
+    xStatus = xQueueSendToBack( recvQueue, &blob, portMAX_DELAY );
 
+    //memcpy(buff, spic1_rx_buff, len);   // Read DMA buffer contents into buffer
+    return len;
+    
 }
 
+/*
 unsigned int spic2ReadBuffer(unsigned int len, unsigned char *buff) {
 
     // Make sure requested length is in range
@@ -369,43 +387,62 @@ unsigned int spic2ReadBuffer(unsigned int len, unsigned char *buff) {
     memcpy(buff, spic2_rx_buff, len);   // Read DMA buffer contents into buffer
     return len;
 }
+*/
 
 // =========== Private Functions ==============================================
 // TODO: Check for DMA error codes and return appropriate interrupt cause
 // ISR for DMA2 interrupt, currently DMAR for channel 1
 void __attribute__((interrupt, no_auto_psv)) _DMA2Interrupt(void) {
 
-    // Call registered callback function
-    xSemaphoreGive(xSPI_CHANNEL_1);
-    //int_handler_ch1[port_cs_line[0]](SPIC_TRANS_SUCCESS);
+    portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA2IF = 0;
+
+    xSemaphoreGiveFromISR(xSPI_CHAN1_Semaphore, &xHigherPriorityTaskWoken );
+    if (xHigherPriorityTaskWoken != pdFALSE) {
+        taskYIELD();
+    }
+    // Call registered callback function
+    //int_handler_ch1[port_cs_line[0]](SPIC_TRANS_SUCCESS);
 
 }
 
 // ISR for DMA3 interrupt, currently DMAW for channel 1
 void __attribute__((interrupt, no_auto_psv)) _DMA3Interrupt(void) {
-    xSemaphoreGive(xSPI_CHANNEL_1);
+    
+    portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA3IF = 0;
 
+    xSemaphoreGiveFromISR(xSPI_CHAN1_Semaphore, &xHigherPriorityTaskWoken );
+    if (xHigherPriorityTaskWoken != pdFALSE) {
+        taskYIELD();
+    }
 }
 
 // ISR for DMA4 interrupt, currently DMAR for channel 2
 void __attribute__((interrupt, no_auto_psv)) _DMA4Interrupt(void) {
 
-    // Call registered callback function
-    xSemaphoreGive(xSPI_CHANNEL_2);
-    //int_handler_ch2[port_cs_line[1]](SPIC_TRANS_SUCCESS);
+    portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA4IF = 0;
 
+    xSemaphoreGiveFromISR(xSPI_CHAN2_Semaphore, &xHigherPriorityTaskWoken );
+    if (xHigherPriorityTaskWoken != pdFALSE) {
+        taskYIELD();
+    }
+    // Call registered callback function
+    //int_handler_ch2[port_cs_line[1]](SPIC_TRANS_SUCCESS);
 }
 
 // ISR for DMA5 interrupt, currently DMAW for channel 2
 // Currently not used, though it may be useful for debugging
 void __attribute__((interrupt, no_auto_psv)) _DMA5Interrupt(void) {
 
-    xSemaphoreGive(xSPI_CHANNEL_2);
+    portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA5IF = 0;
 
+    xSemaphoreGiveFromISR(xSPI_CHAN2_Semaphore, &xHigherPriorityTaskWoken );
+    if (xHigherPriorityTaskWoken != pdFALSE) {
+        taskYIELD();
+    }
 }
 
 static void setupDMASet1 (void)

@@ -158,8 +158,8 @@ void sendUART(unsigned char *frame_header, unsigned char *data, unsigned char le
 void vXbeeHandlerStartTasks(unsigned portBASE_TYPE uxPriority) {
 
     //Retrieve queue handles
-    //radioRXQueue = radioGetRXQueueHandle();
-    //radioTXQueue = radioGetTXQueueHandle();
+    radioRXQueue = radioGetRXQueueHandle();
+    radioTXQueue = radioGetTXQueueHandle();
     serialTXBlobQueue = serialGetTXQueueHandle();
     serialRXCharQueue = serialGetRXQueueHandle();
     //TODO: check here is handles are OK? Tasks must be started in the right order

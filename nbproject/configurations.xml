@@ -16,12 +16,14 @@
         <itemPath>../imageproc-lib/ppool.h</itemPath>
         <itemPath>../imageproc-lib/bsp-basestation.h</itemPath>
         <itemPath>../imageproc-lib/spi_controller.h</itemPath>
+        <itemPath>../imageproc-lib/mac_packet.h</itemPath>
       </logicalFolder>
       <itemPath>src/init.h</itemPath>
       <itemPath>src/xbee_constants.h</itemPath>
       <itemPath>src/settings.h</itemPath>
       <itemPath>src/xbee_handler-freertos.h</itemPath>
       <itemPath>src/serial-freertos.h</itemPath>
+      <itemPath>radio-freertos.h</itemPath>
     </logicalFolder>
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
@@ -63,6 +65,7 @@
       <itemPath>src/blob.c</itemPath>
       <itemPath>src/xbee_handler-freertos.c</itemPath>
       <itemPath>spi_controller-freertos.c</itemPath>
+      <itemPath>radio-freertos.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
