@@ -87,6 +87,9 @@
 #define SPI_CS_IDLE             (1)
 
 
+//FreeRTOS configuration macros
+#define spiSTACK_SIZE				configMINIMAL_STACK_SIZE
+
 // =========== Function Prototypes ============================================
 static void setupDMASet1(void);
 static void setupDMASet2(void);
@@ -106,8 +109,10 @@ static unsigned int spicon_ch2[2];
 //DECLARE_SPINLOCK_C(spi_port_ch1);
 //DECLARE_SPINLOCK_H(spi_port_ch2);
 //DECLARE_SPINLOCK_C(spi_port_ch2);
-static SemaphoreHandle_t xSPI_CHAN1_Semaphore;
-static SemaphoreHandle_t xSPI_CHAN2_Semaphore;
+static SemaphoreHandle_t xSPI_CHAN1_Mutex;
+static SemaphoreHandle_t xSPI_CHAN2_Mutex;
+
+static portTASK_FUNCTION_PROTO(vSPITask, pvParameters);
 
 /** Current port chip select */
 static unsigned char port_cs_line[SPIC_NUM_PORTS];
@@ -138,14 +143,12 @@ void spicSetupChannel2(unsigned char cs, unsigned int spiCon1) {
 int spic1BeginTransaction(unsigned char cs) {
     // TODO: Timeout?
 
-
-
     // TODO: generalize?
     if (cs > 0)
       // Only one CS line is supported
       return -1;
 
-    xSemaphoreTake(xSPI_CHAN1_Semaphore, portMAX_DELAY);
+    xSemaphoreTake(xSPI_CHAN1_Mutex, portMAX_DELAY);
 
     //CRITICAL_SECTION_START;
     // Reconfigure port
@@ -166,7 +169,7 @@ int spic2BeginTransaction(unsigned char cs) {
       // Two CS lines are supported
       return -1;
 
-    xSemaphoreTake(xSPI_CHAN2_Semaphore, portMAX_DELAY);
+    xSemaphoreTake(xSPI_CHAN2_Mutex, portMAX_DELAY);
 
     // Reconfigure port       ////// MPU INTERRUPTING HERE, over dfmemRead
     //CRITICAL_SECTION_START;
@@ -397,7 +400,7 @@ void __attribute__((interrupt, no_auto_psv)) _DMA2Interrupt(void) {
     portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA2IF = 0;
 
-    xSemaphoreGiveFromISR(xSPI_CHAN1_Semaphore, &xHigherPriorityTaskWoken );
+    xSemaphoreGiveFromISR(xSPI_CHAN1_Mutex, &xHigherPriorityTaskWoken );
     if (xHigherPriorityTaskWoken != pdFALSE) {
         taskYIELD();
     }
@@ -412,7 +415,7 @@ void __attribute__((interrupt, no_auto_psv)) _DMA3Interrupt(void) {
     portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA3IF = 0;
 
-    xSemaphoreGiveFromISR(xSPI_CHAN1_Semaphore, &xHigherPriorityTaskWoken );
+    xSemaphoreGiveFromISR(xSPI_CHAN1_Mutex, &xHigherPriorityTaskWoken );
     if (xHigherPriorityTaskWoken != pdFALSE) {
         taskYIELD();
     }
@@ -424,7 +427,7 @@ void __attribute__((interrupt, no_auto_psv)) _DMA4Interrupt(void) {
     portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA4IF = 0;
 
-    xSemaphoreGiveFromISR(xSPI_CHAN2_Semaphore, &xHigherPriorityTaskWoken );
+    xSemaphoreGiveFromISR(xSPI_CHAN2_Mutex, &xHigherPriorityTaskWoken );
     if (xHigherPriorityTaskWoken != pdFALSE) {
         taskYIELD();
     }
@@ -439,7 +442,7 @@ void __attribute__((interrupt, no_auto_psv)) _DMA5Interrupt(void) {
     portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA5IF = 0;
 
-    xSemaphoreGiveFromISR(xSPI_CHAN2_Semaphore, &xHigherPriorityTaskWoken );
+    xSemaphoreGiveFromISR(xSPI_CHAN2_Mutex, &xHigherPriorityTaskWoken );
     if (xHigherPriorityTaskWoken != pdFALSE) {
         taskYIELD();
     }
@@ -541,13 +544,24 @@ void vSPIStartTask(unsigned portBASE_TYPE uxPriority) {
     //serialTXBlobQueue = xQueueCreate(UART_TX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( Blob_t));
     //serialRXCharQueue = xQueueCreate(UART_RX_QUEUE_SIZE, (unsigned portBASE_TYPE) sizeof ( signed char));
 
-    xSPI_CHAN1_Semaphore = xSemaphoreCreateBinary();
-    xSPI_CHAN2_Semaphore = xSemaphoreCreateBinary();
+    xSPI_CHAN1_Mutex = xSemaphoreCreateMutex();
+    xSPI_CHAN2_Mutex = xSemaphoreCreateMutex();
 
     //Create task
     //TODO: Should we two separate tasks, one for RX, one for TX?
-    xTaskCreate(vSPITask, (const char *) "SPITask", spiSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+    //xTaskCreate(vSPITask, (const char *) "SPITask", spiSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
 
     //Enable UART interrupts
     //ConfigIntUART1( UART_RX_INT_EN & UART_RX_INT_PR4);
+}
+
+static portTASK_FUNCTION(vSPITask, pvParameters) {
+    portTickType xLastWakeTime;
+    xLastWakeTime = xTaskGetTickCount();
+    portBASE_TYPE xStatus;
+
+    for (;;) {
+        //TODO: Is yielding neccesary here?
+        //taskYIELD();
+    }
 }

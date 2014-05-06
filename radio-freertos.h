@@ -129,8 +129,8 @@ void radioDisableWatchdog(void);
 void radioSetWatchdogTime(unsigned int time);
 
 // Queue interface
-unsigned int radioEnqueueTxPacket(MacPacket packet);
-MacPacket radioDequeueRxPacket(void);
+unsigned int radioEnqueueTxPacket(MacPacket packet, TickType_t delay);
+MacPacket radioDequeueRxPacket(TickType_t delay);
 
 //unsigned char radioSendData (unsigned int dest_addr, unsigned char status,
 //                             unsigned char type, unsigned int datalen,

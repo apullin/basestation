@@ -48,10 +48,11 @@
 //Library includes
 #include "utils.h"
 #include "init_default.h"
-#include "radio.h"
+#include "radio-freertos.h"
 #include "mac_packet.h"
 #include "sclock.h"
 #include "timer.h"
+#include "ppool.h"
 
 #include "at86rf231.h"  // Current transceiver IC
 #include "at86rf231_driver.h"
@@ -86,8 +87,7 @@ static QueueHandle_t radioRXQueue;
 static QueueHandle_t radioTXQueue;
 
 // =========== Function stubs =================================================
-static portTASK_FUNCTION_PROTO(vRadioRXTask, pvParameters);
-static portTASK_FUNCTION_PROTO(vRadioTXTask, pvParameters);
+static portTASK_FUNCTION_PROTO(vRadioTask, pvParameters);
 
 // IRQ handlers
 void trxCallback(unsigned int irq_cause);
@@ -96,8 +96,8 @@ static inline void watchdogProgress(void);
 static void radioReset(void);
 
 // Internal processing
-static void radioProcessTx(void);
-static void radioProcessRx(void);
+static void radioProcessTx(TickType_t timeout);
+static void radioProcessRx(TickType_t timeout);
 
 // Internal state management methods
 static unsigned int radioBeginTransition(void);
@@ -238,48 +238,72 @@ void radioSetWatchdogTime(unsigned int time) {
     watchdogProgress();
 }
 
-MacPacket radioDequeueRxPacket(void)
+MacPacket radioDequeueRxPacket(TickType_t delay)
 {
     if ( !is_ready ) return NULL;
 
-    return (MacPacket)carrayPopTail(rx_queue);
+    //return (MacPacket)carrayPopTail(rx_queue);
+    MacPacket packet;
+    portBASE_TYPE xStatus;
+    xStatus = xQueueReceive(radioRXQueue, &packet,  delay);
+    return packet;
 }
 
-unsigned int radioEnqueueTxPacket(MacPacket packet) {
+unsigned int radioEnqueueTxPacket(MacPacket packet, TickType_t delay) {
     if(!is_ready) { return 0; }
-    return carrayAddTail(tx_queue, packet);
+    //return carrayAddTail(tx_queue, packet);
+    portBASE_TYPE xStatus;
+    xStatus = xQueueSendToBack(radioRXQueue, &packet,  delay);
+    return (xStatus == pdPASS);
 }
 
 unsigned int radioTxQueueEmpty(void) {
-    return carrayIsEmpty(tx_queue);
+    //return carrayIsEmpty(tx_queue);
+    return ( radioGetTxQueueSize() == 0);
 }
 
 unsigned int radioTxQueueFull(void) {
-    return carrayIsFull(tx_queue);
+    //return carrayIsFull(tx_queue);
+    portBASE_TYPE spaces;
+    spaces = uxQueueSpacesAvailable(radioTXQueue);
+    return (spaces ==0 );
 }
 
 unsigned int radioGetTxQueueSize(void) {
-    return carrayGetSize(tx_queue);
+    //return carrayGetSize(tx_queue);
+    portBASE_TYPE size;
+    size = uxQueueMessagesWaiting(radioTXQueue);
+    return size;
 }
 
 unsigned int radioRxQueueEmpty(void){
-    return carrayIsEmpty(rx_queue);
+    return ( radioGetRxQueueSize() == 0);
 }
 
 unsigned int radioRxQueueFull(void) {
-    return carrayIsFull(rx_queue);
+    //return carrayIsFull(rx_queue);
+    portBASE_TYPE spaces;
+    spaces = uxQueueSpacesAvailable(radioRXQueue);
+    return ( spaces ==0 );
 }
 
 unsigned int radioGetRxQueueSize(void) {
-    return carrayGetSize(rx_queue);
+    //return carrayGetSize(rx_queue);
+    portBASE_TYPE size;
+    size = uxQueueMessagesWaiting(radioRXQueue);
+    return size;
 }
 
 void radioFlushQueues(void) {
-    while (!carrayIsEmpty(tx_queue)) {
-        radioReturnPacket((MacPacket)carrayPopTail(tx_queue));
+    MacPacket pkt;
+
+    while (!radioRxQueueEmpty()) {
+        pkt = (MacPacket)xQueueReceive(radioRXQueue, &pkt, 0);
+        radioReturnPacket(pkt);
     }
-    while (!carrayIsEmpty(rx_queue)) {
-        radioReturnPacket((MacPacket)carrayPopTail(rx_queue));
+    while (!radioTxQueueEmpty()) {
+        pkt = (MacPacket)xQueueReceive(radioTXQueue, &pkt, 0);
+        radioReturnPacket(pkt);
     }
 }
 
@@ -329,7 +353,7 @@ void radioProcess(void) {
         // Return if can't get to Tx state at the moment
         if(!radioSetStateTx()) { return; }
         watchdogProgress();
-        radioProcessTx(); // Process outgoing buffer
+        radioProcessTx(0); // Process outgoing buffer
         return;
 
     }
@@ -381,12 +405,12 @@ unsigned char radioSendData (unsigned int dest_addr, unsigned char status,
 
     if (fast_fail)
     {
-        if ( !radioEnqueueTxPacket(packet) ){
+        if ( !radioEnqueueTxPacket(packet, 0) ){
             radioReturnPacket(packet);
             return EXIT_FAILURE;
         }
     } else {
-        while ( !radioEnqueueTxPacket(packet) ) radioProcess();
+        while ( !radioEnqueueTxPacket(packet, 0) ) radioProcess();
     }
 
     return EXIT_SUCCESS;
@@ -441,7 +465,7 @@ void trxCallback(unsigned int irq_cause) {
 
         // Reception complete
         if(irq_cause == RADIO_RX_SUCCESS) {
-            radioProcessRx();   // Process newly received data
+            radioProcessRx(0);   // Process newly received data
             status.last_rssi = trxReadRSSI();
             status.last_ed = trxReadED();
             status.state = STATE_RX_IDLE;    // Transition after data processed
@@ -454,14 +478,20 @@ void trxCallback(unsigned int irq_cause) {
         status.state = STATE_TX_IDLE;
         // Transmit successful
         if(irq_cause == RADIO_TX_SUCCESS) {
-            radioReturnPacket(carrayPopHead(tx_queue));
+            MacPacket pkt;
+            portBASE_TYPE xStatus;
+            xStatus = xQueueReceive(radioTXQueue, &pkt, 0);
+            radioReturnPacket(pkt);
             radioSetStateRx();
         } else if(irq_cause == RADIO_TX_FAILURE) {
             // If no more retries, reset retry counter
             status.retry_number++;
             if(status.retry_number > configuration.soft_retries) {
                 status.retry_number = 0;
-                radioReturnPacket((MacPacket)carrayPopHead(tx_queue));
+                MacPacket pkt;
+                portBASE_TYPE xStatus;
+                xStatus = xQueueReceive(radioTXQueue, &pkt, 0);
+                radioReturnPacket(pkt);
                 radioSetStateRx();
             }
         }
@@ -585,12 +615,16 @@ static unsigned int radioBeginTransition(void) {
 /**
  * Process a pending packet send request
  */
-static void radioProcessTx(void) {
+static void radioProcessTx(TickType_t timeout) {
 
     MacPacket packet;
+    portBASE_TYPE xStatus;
 
-    packet = (MacPacket) carrayPeekHead(tx_queue); // Find an outgoing packet
-    if(packet == NULL) { return; }
+    xStatus = xQueuePeek(radioTXQueue, &packet, timeout);
+
+    //packet = (MacPacket) carrayPeekHead(tx_queue); // Find an outgoing packet
+    //if(packet == NULL) { return; }
+    if(xStatus != pdPASS) { return; }
 
     // State should be STATE_TX_IDLE upon entering function
     status.state = STATE_TX_BUSY;    // Update state
@@ -605,7 +639,7 @@ static void radioProcessTx(void) {
 /**
  * Process a pending packet receive request
  */
-static void radioProcessRx(void) {
+static void radioProcessRx(TickType_t timeout) {
 
     MacPacket packet;
     unsigned char len;
@@ -620,10 +654,14 @@ static void radioProcessRx(void) {
     trxReadFrameBuffer(packet); // Retrieve frame from transceiver
     packet->timestamp = sclockGetTime(); // Mark local time of reception
 
-    if(!carrayAddTail(rx_queue, packet)) {
+    //if(!carrayAddTail(rx_queue, packet)) {
+    //    radioReturnPacket(packet); // Check for failure
+    //}
+    portBASE_TYPE xStatus;
+    xStatus = xQueueSendToBack(radioRXQueue, &packet, timeout);
+    if(xStatus != pdPASS) {
         radioReturnPacket(packet); // Check for failure
     }
-
 }
 
 static inline void watchdogProgress(void) {
@@ -641,6 +679,16 @@ QueueHandle_t radioGetRXQueueHandle(void) {
 }
 
 void vXbeeHandlerStartTasks(unsigned portBASE_TYPE uxPriority) {
-    xTaskCreate(vRadioRXTask, (const char *) "RadioRXTask", radiotaskSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
-    xTaskCreate(vRadioRXTask, (const char *) "RadioTXTask", radiotaskSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+    xTaskCreate(vRadioTask, (const char *) "RadioRXTask", radiotaskSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+}
+
+static portTASK_FUNCTION(vRadioTask, pvParameters) {
+    portTickType xLastWakeTime;
+    xLastWakeTime = xTaskGetTickCount();
+    portBASE_TYPE xStatus;
+
+    for (;;) {
+        //TODO: Is yielding neccesary here?
+        //taskYIELD();
+    }
 }

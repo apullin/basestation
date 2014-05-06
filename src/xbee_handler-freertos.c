@@ -57,7 +57,7 @@
 #include "utils.h"
 #include "serial-freertos.h"
 #include "mac_packet.h"
-#include "radio.h"   //for radio stack calls
+#include "radio-freertos.h"   //for radio stack calls
 #include "payload.h"
 #include "xbee_constants.h"
 #include "xbee_handler-freertos.h"

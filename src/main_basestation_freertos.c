@@ -56,7 +56,7 @@
 #include "init_default.h"
 #include "utils.h"
 #include "uart.h"               //Microchip
-#include "radio.h"
+#include "radio-freertos.h"
 #include <stdio.h>
 #include "xbee_handler-freertos.h"
 #include "settings.h"
