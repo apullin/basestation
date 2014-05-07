@@ -149,16 +149,13 @@ void radioFlushQueues(void);
 
 // Processes queues and internals
 // Should be called regularly
-void radioProcess(void);
+void radioProcess(void) __attribute__ ((deprecated));
 
 // Object access/creation
 // Request a packet + payload from the preinitialized pool
 MacPacket radioRequestPacket(unsigned int data_size);
 // Return a packet + payload to the preinitialized pool
 unsigned int radioReturnPacket(MacPacket packet);
-
-QueueHandle_t radioGetTXQueueHandle(void);
-QueueHandle_t radioGetRXQueueHandle(void);
 
 #endif // __RADIO_H
 

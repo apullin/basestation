@@ -534,6 +534,15 @@ static void setupDMASet2 (void)
     _DMA5IF  = 0;   // Clear DMA interrupt
 }
 
+
+portBASE_TYPE spic2BlockingWaitDMAFinish(TickType_t timeout){
+    portBASE_TYPE xStatus;
+    //Will attempt to take the semaphore, which should already be unavaialble
+    xSemaphoreTake(xSPI_CHAN2_Mutex, timeout);
+    xStatus = xSemaphoreGive(xSPI_CHAN2_Mutex);
+    return xStatus;
+}
+
 void vSPIStartTask(unsigned portBASE_TYPE uxPriority) {
     //Peripheral setup, including DMA
     //SetupUART1();

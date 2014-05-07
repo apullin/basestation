@@ -239,4 +239,6 @@ unsigned int spic2MassTransmit(unsigned int len, unsigned char *buff, unsigned i
  */
 unsigned int spic2ReadBuffer(unsigned int len, unsigned char *buff);
 
+portBASE_TYPE spic2BlockingWaitDMAFinish(TickType_t timeout);
+
 #endif // __SPI_CONTROLLER_FREERTOS_H

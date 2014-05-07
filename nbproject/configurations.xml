@@ -55,7 +55,6 @@
         <itemPath>../imageproc-lib/init_default.c</itemPath>
         <itemPath>../imageproc-lib/payload.c</itemPath>
         <itemPath>../imageproc-lib/delay.s</itemPath>
-        <itemPath>../imageproc-lib/at86rf231_driver.c</itemPath>
         <itemPath>../imageproc-lib/mac_packet.c</itemPath>
         <itemPath>../imageproc-lib/sclock.c</itemPath>
         <itemPath>../imageproc-lib/ppool.c</itemPath>
@@ -69,6 +68,7 @@
       <itemPath>src/xbee_handler-freertos.c</itemPath>
       <itemPath>src/radio-freertos.c</itemPath>
       <itemPath>src/spi_controller-freertos.c</itemPath>
+      <itemPath>src/at86rf231_driver-freertos.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"

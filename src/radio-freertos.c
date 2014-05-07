@@ -44,6 +44,7 @@
 #include "FreeRTOS.h"
 #include "queue.h"
 #include "task.h"
+#include "semphr.h"
 
 //Library includes
 #include "utils.h"
@@ -87,7 +88,8 @@ static QueueHandle_t radioRXQueue;
 static QueueHandle_t radioTXQueue;
 
 // =========== Function stubs =================================================
-static portTASK_FUNCTION_PROTO(vRadioTask, pvParameters);
+static portTASK_FUNCTION_PROTO(vRadioRXTask, pvParameters);
+static portTASK_FUNCTION_PROTO(vRadioTXTask, pvParameters);
 
 // IRQ handlers
 void trxCallback(unsigned int irq_cause);
@@ -96,7 +98,7 @@ static inline void watchdogProgress(void);
 static void radioReset(void);
 
 // Internal processing
-static void radioProcessTx(TickType_t timeout);
+static void radioProcessTx(MacPacket packet);
 static void radioProcessRx(TickType_t timeout);
 
 // Internal state management methods
@@ -334,6 +336,7 @@ void radioDeletePacket(MacPacket packet) {
 }
 
 // The Big Function
+//////////// DEPRECATED FOR FREERTOS ///////////
 void radioProcess(void) {
 
     unsigned long currentTime;
@@ -615,16 +618,14 @@ static unsigned int radioBeginTransition(void) {
 /**
  * Process a pending packet send request
  */
-static void radioProcessTx(TickType_t timeout) {
+static void radioProcessTx(MacPacket packet) {
 
-    MacPacket packet;
+    //MacPacket packet;
     portBASE_TYPE xStatus;
-
-    xStatus = xQueuePeek(radioTXQueue, &packet, timeout);
 
     //packet = (MacPacket) carrayPeekHead(tx_queue); // Find an outgoing packet
     //if(packet == NULL) { return; }
-    if(xStatus != pdPASS) { return; }
+    //if(xStatus != pdPASS) { return; }
 
     // State should be STATE_TX_IDLE upon entering function
     status.state = STATE_TX_BUSY;    // Update state
@@ -679,16 +680,44 @@ QueueHandle_t radioGetRXQueueHandle(void) {
 }
 
 void vRadioStartTasks(unsigned portBASE_TYPE uxPriority) {
-    xTaskCreate(vRadioTask, (const char *) "RadioRXTask", radiotaskSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+    xTaskCreate(vRadioRXTask, (const char *) "RadioRXTask", radiotaskSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
+    xTaskCreate(vRadioTXTask, (const char *) "RadioTXTask", radiotaskSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
 }
 
-static portTASK_FUNCTION(vRadioTask, pvParameters) {
+static portTASK_FUNCTION(vRadioTXTask, pvParameters) {
+    portTickType xLastWakeTime;
+    xLastWakeTime = xTaskGetTickCount();
+    portBASE_TYPE xStatus;
+
+    MacPacket packet;
+
+    for (;;) {
+        //Recieve from TX (outgoing) queue
+        xStatus = xQueueReceive(radioTxQueue, &packet, portMAX_DELAY);
+        //Take radio mutex
+        xStatus = xSemaphoreTake(xRadioMutex, portMAX_DELAY);
+        //dispatch packet to transceiver
+        radioProcessTx(packet);
+        //release radio mutex
+        xStatus = xSemaphoreGive(xRadioMutex, portMAX_DELAY);
+        if(radioTxQueueEmpty()){
+            radioSetStateRx();
+        }
+        //Return packet
+        radioReturnPacket(packet);
+        //TODO: Is yielding neccesary here?
+        taskYIELD();
+    }
+}
+
+static portTASK_FUNCTION(vRadioRXTask, pvParameters) {
     portTickType xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
     portBASE_TYPE xStatus;
 
     for (;;) {
         //TODO: Is yielding neccesary here?
-        //taskYIELD();
+        taskYIELD();
+        //TODO: Radio auto-recalibration
     }
 }

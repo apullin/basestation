@@ -41,7 +41,16 @@
  *    No-Clock (sleep) RX listening mode not yet implemented
  */
 
+
+
 #include <xc.h>
+//FreeRTOS includes
+#include "FreeRTOS.h"
+#include "queue.h"
+#include "task.h"
+#include "semphr.h"
+
+//Library Includes
 #include "ports.h"
 #include "at86rf231.h"
 #include "at86rf231_driver-freertos.h"
@@ -86,6 +95,9 @@ static unsigned char trxReadReg(unsigned char addr);
 
 static void trxWriteSubReg(unsigned char addr, unsigned char mask, unsigned char pos, unsigned char val);
 static unsigned char trxReadSubReg(unsigned char addr, unsigned char mask, unsigned char pos);
+
+
+static portTASK_FUNCTION_PROTO(vTRXTask, pvParameters);
 
 
 // =========== Static variables ===============================================
@@ -243,6 +255,7 @@ void trxWriteFrameBuffer(MacPacket packet) {
     spic2BeginTransaction(TRX_CS);
     spic2Transmit(TRX_CMD_FW);
     spic2MassTransmit(phy_len, frame_buffer, phy_len*3); // 3*length microseconds timeout seems to work well
+    spic2BlockingWaitDMAFinish(portMAX_DELAY);
 }
 
 unsigned int trxReadFrameBuffer(MacPacket packet) {
@@ -430,6 +443,7 @@ static unsigned char trxReadSubReg(unsigned char addr, unsigned char mask, unsig
 void __attribute__((interrupt, no_auto_psv)) _INT4Interrupt(void) {
 
     unsigned char irq_cause, status;
+    static BaseType_t xHigherPriorityTaskWoken;
      _INT4IF = 0;                                // Clear interrupt flag
 
     irq_cause = 0;
@@ -437,7 +451,13 @@ void __attribute__((interrupt, no_auto_psv)) _INT4Interrupt(void) {
 
     irq_cause = trxReadReg(RG_IRQ_STATUS);    // Read and clear irq source
 
-    trxStateMachine(irq_cause);
+    xSemaphoreGiveFromISR(xTRXIntHandlerBinarySemaphore);
+    if (xHigherPriorityTaskWoken != pdFALSE) {
+        // We can force a context switch here.  Context switching from an
+        // ISR uses port specific syntax.
+        taskYIELD();
+    }
+
 }
 
 void trxStateMachine(unsigned char irq_cause){
@@ -564,4 +584,18 @@ static inline void trxSetSlptr(unsigned char val) {
     SLPTR = val;
     Nop();
     Nop();
+}
+
+static portTASK_FUNCTION(vTRXTask, pvParameters) {
+    portTickType xLastWakeTime;
+    xLastWakeTime = xTaskGetTickCount();
+    portBASE_TYPE xStatus;
+
+    for (;;) {
+        xSemaphoreTake(xTRXIntHandlerBinarySemaphore);
+        trxStateMachine(irq_cause);
+        //TODO: Is yielding neccesary here?
+        taskYIELD();
+        //TODO: Radio auto-recalibration
+    }
 }
