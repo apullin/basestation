@@ -446,7 +446,7 @@ static void radioReset(void) {
  * only be called in interrupt context
  * @param irq_cause Interrupt source code
  */
-void trxCallback(unsigned int irq_cause) {
+void trxInterruptHandler(unsigned int irq_cause) {
 
     if(status.state == STATE_SLEEP) {
         // Shouldn't be here since sleep isn't implemented yet!
@@ -678,7 +678,7 @@ QueueHandle_t radioGetRXQueueHandle(void) {
     return radioRXQueue;
 }
 
-void vXbeeHandlerStartTasks(unsigned portBASE_TYPE uxPriority) {
+void vRadioStartTasks(unsigned portBASE_TYPE uxPriority) {
     xTaskCreate(vRadioTask, (const char *) "RadioRXTask", radiotaskSTACK_SIZE, NULL, uxPriority, (xTaskHandle *) NULL);
 }
 

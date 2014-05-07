@@ -247,7 +247,7 @@ void xbeeHandleTX(Payload uart_pld){
     tx_packet->payload_length = payGetPayloadLength(rx_pld);//rx_pld_len.byte.LB - (RX_FRAME_OFFSET - RX_DATA_OFFSET);
     //tx_packet->dest_pan_id = src_pan_id; //Already set when macCreatePacket is called.
     tx_packet->dest_addr = dst_addr;
-    radioEnqueueTxPacket(tx_packet);
+    radioEnqueueTxPacket(tx_packet, 0);
 
 }
 

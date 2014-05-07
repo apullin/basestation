@@ -157,6 +157,8 @@ MacPacket radioRequestPacket(unsigned int data_size);
 // Return a packet + payload to the preinitialized pool
 unsigned int radioReturnPacket(MacPacket packet);
 
+QueueHandle_t radioGetTXQueueHandle(void);
+QueueHandle_t radioGetRXQueueHandle(void);
 
 #endif // __RADIO_H
 

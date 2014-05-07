@@ -23,7 +23,9 @@
       <itemPath>src/settings.h</itemPath>
       <itemPath>src/xbee_handler-freertos.h</itemPath>
       <itemPath>src/serial-freertos.h</itemPath>
-      <itemPath>radio-freertos.h</itemPath>
+      <itemPath>src/radio-freertos.h</itemPath>
+      <itemPath>src/spi_controller-freertos.h</itemPath>
+      <itemPath>src/FreeRTOSConfig.h</itemPath>
     </logicalFolder>
     <logicalFolder name="SourceFiles"
                    displayName="Source Files"
@@ -34,10 +36,12 @@
           </logicalFolder>
           <logicalFolder name="portable" displayName="portable" projectFiles="true">
             <logicalFolder name="MemMang" displayName="MemMang" projectFiles="true">
+              <itemPath>FreeRTOS/Source/portable/MemMang/heap_3.c</itemPath>
             </logicalFolder>
             <logicalFolder name="MPLAB" displayName="MPLAB" projectFiles="true">
               <logicalFolder name="PIC24_dsPIC" displayName="PIC24_dsPIC" projectFiles="true">
                 <itemPath>FreeRTOS/Source/portable/MPLAB/PIC24_dsPIC/port.c</itemPath>
+                <itemPath>FreeRTOS/Source/portable/MPLAB/PIC24_dsPIC/portasm_dsPIC.S</itemPath>
               </logicalFolder>
             </logicalFolder>
           </logicalFolder>
@@ -55,6 +59,7 @@
         <itemPath>../imageproc-lib/mac_packet.c</itemPath>
         <itemPath>../imageproc-lib/sclock.c</itemPath>
         <itemPath>../imageproc-lib/ppool.c</itemPath>
+        <itemPath>../imageproc-lib/carray.c</itemPath>
       </logicalFolder>
       <itemPath>src/traps.c</itemPath>
       <itemPath>src/main_basestation_freertos.c</itemPath>
@@ -62,8 +67,8 @@
       <itemPath>src/blob.h</itemPath>
       <itemPath>src/blob.c</itemPath>
       <itemPath>src/xbee_handler-freertos.c</itemPath>
-      <itemPath>spi_controller-freertos.c</itemPath>
-      <itemPath>radio-freertos.c</itemPath>
+      <itemPath>src/radio-freertos.c</itemPath>
+      <itemPath>src/spi_controller-freertos.c</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"

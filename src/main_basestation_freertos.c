@@ -59,6 +59,7 @@
 #include "radio-freertos.h"
 #include <stdio.h>
 #include "xbee_handler-freertos.h"
+#include "serial-freertos.h"
 #include "settings.h"
 #include "sclock.h"
 
