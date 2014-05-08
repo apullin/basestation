@@ -157,8 +157,7 @@ MacPacket radioRequestPacket(unsigned int data_size);
 // Return a packet + payload to the preinitialized pool
 unsigned int radioReturnPacket(MacPacket packet);
 
+void RadioStateMachine(unsigned int irq_cause);
+
 #endif // __RADIO_H
-
-
-#endif	/* RADIO_FREERTOS_H */
 

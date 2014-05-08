@@ -109,6 +109,7 @@ static tal_trx_status_t trx_state;
 static unsigned char frame_buffer[FRAME_BUFFER_SIZE];
 static unsigned char last_rssi;
 static unsigned char last_ackd = 0;
+static unsigned char last_irq_cause = 0;
 
 
 // =========== Public functions ===============================================
@@ -442,14 +443,11 @@ static unsigned char trxReadSubReg(unsigned char addr, unsigned char mask, unsig
 
 void __attribute__((interrupt, no_auto_psv)) _INT4Interrupt(void) {
 
-    unsigned char irq_cause, status;
     static BaseType_t xHigherPriorityTaskWoken;
-     _INT4IF = 0;                                // Clear interrupt flag
+    _INT4IF = 0; // Clear interrupt flag
 
-    irq_cause = 0;
-    status = 0xFF;
-
-    irq_cause = trxReadReg(RG_IRQ_STATUS);    // Read and clear irq source
+    //IRQ cause must be read immediately
+    last_irq_cause = trxReadReg(RG_IRQ_STATUS); // Read and clear irq source
 
     xSemaphoreGiveFromISR(xTRXIntHandlerBinarySemaphore);
     if (xHigherPriorityTaskWoken != pdFALSE) {
@@ -476,16 +474,16 @@ void trxStateMachine(unsigned char irq_cause){
 
             if(status == TRAC_SUCCESS) {
                 last_ackd = 1;
-                irqCallback(RADIO_TX_SUCCESS);
+                RadioStateMachine(RADIO_TX_SUCCESS);
             } else if(status == TRAC_SUCCESS_DATA_PENDING) {
-                irqCallback(RADIO_TX_SUCCESS);
+                RadioStateMachine(RADIO_TX_SUCCESS);
             } else if(status == TRAC_CHANNEL_ACCESS_FAILURE) {
-                irqCallback(RADIO_TX_FAILURE);
+                RadioStateMachine(RADIO_TX_FAILURE);
             } else if(status == TRAC_NO_ACK) {
                 last_ackd = 0;
-                irqCallback(RADIO_TX_FAILURE);
+                RadioStateMachine(RADIO_TX_FAILURE);
             } else if(status == TRAC_INVALID) {
-                irqCallback(RADIO_TX_FAILURE);
+                RadioStateMachine(RADIO_TX_FAILURE);
             }
 
         } else if(trx_state == RX_AACK_ON) {
@@ -496,13 +494,13 @@ void trxStateMachine(unsigned char irq_cause){
             // }
             if(status == TRAC_SUCCESS) {
                 trxFillBuffer();
-                irqCallback(RADIO_RX_START);
+                RadioStateMachine(RADIO_RX_START);
             } else if(status == TRAC_WAIT_FOR_ACK) {
                 trxFillBuffer();
-                irqCallback(RADIO_RX_START);
+                RadioStateMachine(RADIO_RX_START);
                 // TODO: Add support for proper slotted ACK operation
             } else if(status == TRAC_INVALID) {
-                irqCallback(RADIO_RX_FAILURE);
+                RadioStateMachine(RADIO_RX_FAILURE);
             }
         }
     }
@@ -586,14 +584,20 @@ static inline void trxSetSlptr(unsigned char val) {
     Nop();
 }
 
+static SemaphoreHandle_t xTRXIntHandlerBinarySemaphore;
+
 static portTASK_FUNCTION(vTRXTask, pvParameters) {
     portTickType xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();
     portBASE_TYPE xStatus;
 
+    xTRXIntHandlerBinarySemaphore = xSemaphoreCreateBinary();
+
     for (;;) {
-        xSemaphoreTake(xTRXIntHandlerBinarySemaphore);
-        trxStateMachine(irq_cause);
+        //INT4 from the TRX will cause execute to come here
+        xSemaphoreTake(xTRXIntHandlerBinarySemaphore, portMAX_DELAY);
+
+        trxStateMachine(last_irq_cause);
         //TODO: Is yielding neccesary here?
         taskYIELD();
         //TODO: Radio auto-recalibration

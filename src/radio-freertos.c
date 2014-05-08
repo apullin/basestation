@@ -92,7 +92,6 @@ static portTASK_FUNCTION_PROTO(vRadioRXTask, pvParameters);
 static portTASK_FUNCTION_PROTO(vRadioTXTask, pvParameters);
 
 // IRQ handlers
-void trxCallback(unsigned int irq_cause);
 static inline void watchdogProgress(void);
 
 static void radioReset(void);
