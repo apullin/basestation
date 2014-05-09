@@ -120,7 +120,7 @@ void trxSetup(unsigned char cs)
     // SPI setup
     setupSPI();     // Set up SPI com port
     //spic1SetCallback(cs, &trxSpiCallback);  // Configure callback for spi interrupts
-    spic2SetCallback(cs, &trxSpiCallback);  // Configure callback for spi interrupts
+    //spic2SetCallback(cs, &trxSpiCallback);  // Configure callback for spi interrupts
     trxReadReg(RG_IRQ_STATUS);   // Clear pending interrupts
     trxSetStateOff(); // Transition to TRX_OFF for configuring device
     trxWriteSubReg(SR_IRQ_MASK, TRX_IRQ_TRX_END); // Interrupt at end of transceive
@@ -190,12 +190,13 @@ void trxSetRetries(unsigned int retries) {
 
 }
 
+/*
 void trxSetIrqCallback(TrxIrqHandler handler) {
 
     irqCallback = handler;
 
 }
-
+*/
 void trxReadId(unsigned char *id) {
 
     id[0] = trxReadReg(RG_PART_NUM);      // should be 3
@@ -515,7 +516,7 @@ static void trxSpiCallback(unsigned int interrupt_code) {
 
         if(trx_state == RX_AACK_ON) {
             trxReadBuffer();
-            irqCallback(RADIO_RX_SUCCESS);
+            RadioStateMachine(RADIO_RX_SUCCESS);
 
         } else if(trx_state == TX_ARET_ON) {
 

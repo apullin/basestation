@@ -115,7 +115,7 @@ void radioInit(unsigned int tx_queue_length, unsigned int rx_queue_length) {
     RadioConfiguration conf;
 
     trxSetup(TRX_CS); // Configure transceiver IC and driver
-    trxSetIrqCallback(&trxCallback);
+    //trxSetIrqCallback(&trxInterruptHandler);
 
     //tx_queue = carrayCreate(tx_queue_length);
     //rx_queue = carrayCreate(rx_queue_length);
@@ -443,12 +443,12 @@ static void radioReset(void) {
 
 /**
  * Transceiver interrupt handler
- *
+ *    used to be called trxInterruptHandler or trxCallback
  * Note that this doesn't need critical sections since this will
  * only be called in interrupt context
  * @param irq_cause Interrupt source code
  */
-void trxInterruptHandler(unsigned int irq_cause) {
+void RadioStateMachine(unsigned int transition) {
 
     if(status.state == STATE_SLEEP) {
         // Shouldn't be here since sleep isn't implemented yet!
@@ -459,14 +459,14 @@ void trxInterruptHandler(unsigned int irq_cause) {
     else if(status.state == STATE_RX_IDLE) {
 
         // Beginning reception process
-        if(irq_cause == RADIO_RX_START) {
+        if(transition == RADIO_RX_START) {
             status.state = STATE_RX_BUSY;
         }
 
     } else if(status.state == STATE_RX_BUSY) {
 
         // Reception complete
-        if(irq_cause == RADIO_RX_SUCCESS) {
+        if(transition == RADIO_RX_SUCCESS) {
             radioProcessRx(0);   // Process newly received data
             status.last_rssi = trxReadRSSI();
             status.last_ed = trxReadED();
@@ -479,31 +479,31 @@ void trxInterruptHandler(unsigned int irq_cause) {
 
         status.state = STATE_TX_IDLE;
         // Transmit successful
-        if(irq_cause == RADIO_TX_SUCCESS) {
-            MacPacket pkt;
-            portBASE_TYPE xStatus;
-            xStatus = xQueueReceive(radioTXQueue, &pkt, 0);
-            radioReturnPacket(pkt);
-            radioSetStateRx();
-        } else if(irq_cause == RADIO_TX_FAILURE) {
+        if(transition == RADIO_TX_SUCCESS) {
+            //MacPacket pkt;
+            //portBASE_TYPE xStatus;
+            //xStatus = xQueueReceive(radioTXQueue, &pkt, 0);
+            //radioReturnPacket(pkt);
+            //radioSetStateRx();
+        } else if(transition == RADIO_TX_FAILURE) {
             // If no more retries, reset retry counter
             status.retry_number++;
             if(status.retry_number > configuration.soft_retries) {
                 status.retry_number = 0;
-                MacPacket pkt;
-                portBASE_TYPE xStatus;
-                xStatus = xQueueReceive(radioTXQueue, &pkt, 0);
-                radioReturnPacket(pkt);
-                radioSetStateRx();
+                //MacPacket pkt;
+                //portBASE_TYPE xStatus;
+                //xStatus = xQueueReceive(radioTXQueue, &pkt, 0);
+                //radioReturnPacket(pkt);
+                //radioSetStateRx();
             }
         }
     }
 
     // Hardware error
-    if(irq_cause == RADIO_HW_FAILURE) {
+    if(transition == RADIO_HW_FAILURE) {
         // Reset everything
         trxReset();
-        //radioFlushQueues();
+        radioFlushQueues();
     }
 }
 

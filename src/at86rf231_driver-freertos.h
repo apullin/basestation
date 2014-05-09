@@ -82,7 +82,7 @@ void trxCalibrate(void);
  *
  * @param handler Function pointer to interrupt handler
  */
-void trxSetIrqCallback(TrxIrqHandler handler);
+//void trxSetIrqCallback(TrxIrqHandler handler);
 
 /**
  * Set the transceiver local 16-bit address.
