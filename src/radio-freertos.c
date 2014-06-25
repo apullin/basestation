@@ -86,6 +86,7 @@ static RadioConfiguration configuration;
 //static CircArray tx_queue, rx_queue;
 static QueueHandle_t radioRXQueue;
 static QueueHandle_t radioTXQueue;
+static SemaphoreHandle_t xRadioMutex;
 
 // =========== Function stubs =================================================
 static portTASK_FUNCTION_PROTO(vRadioRXTask, pvParameters);
@@ -119,6 +120,7 @@ void radioInit(unsigned int tx_queue_length, unsigned int rx_queue_length) {
 
     //tx_queue = carrayCreate(tx_queue_length);
     //rx_queue = carrayCreate(rx_queue_length);
+    xRadioMutex = xSemaphoreCreateMutex();
     radioTXQueue = xQueueCreate(tx_queue_length, (unsigned portBASE_TYPE) sizeof ( MacPacket));
     radioRXQueue = xQueueCreate(rx_queue_length, (unsigned portBASE_TYPE) sizeof ( MacPacket));
 
@@ -692,13 +694,13 @@ static portTASK_FUNCTION(vRadioTXTask, pvParameters) {
 
     for (;;) {
         //Recieve from TX (outgoing) queue
-        xStatus = xQueueReceive(radioTxQueue, &packet, portMAX_DELAY);
+        xStatus = xQueueReceive(radioTXQueue, &packet, portMAX_DELAY);
         //Take radio mutex
         xStatus = xSemaphoreTake(xRadioMutex, portMAX_DELAY);
         //dispatch packet to transceiver
         radioProcessTx(packet);
         //release radio mutex
-        xStatus = xSemaphoreGive(xRadioMutex, portMAX_DELAY);
+        xStatus = xSemaphoreGive(xRadioMutex);
         if(radioTxQueueEmpty()){
             radioSetStateRx();
         }

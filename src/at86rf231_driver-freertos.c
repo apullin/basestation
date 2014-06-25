@@ -442,23 +442,6 @@ static unsigned char trxReadSubReg(unsigned char addr, unsigned char mask, unsig
 
 }
 
-void __attribute__((interrupt, no_auto_psv)) _INT4Interrupt(void) {
-
-    static BaseType_t xHigherPriorityTaskWoken;
-    _INT4IF = 0; // Clear interrupt flag
-
-    //IRQ cause must be read immediately
-    last_irq_cause = trxReadReg(RG_IRQ_STATUS); // Read and clear irq source
-
-    xSemaphoreGiveFromISR(xTRXIntHandlerBinarySemaphore);
-    if (xHigherPriorityTaskWoken != pdFALSE) {
-        // We can force a context switch here.  Context switching from an
-        // ISR uses port specific syntax.
-        taskYIELD();
-    }
-
-}
-
 void trxStateMachine(unsigned char irq_cause){
 
     unsigned char status;
@@ -585,8 +568,28 @@ static inline void trxSetSlptr(unsigned char val) {
     Nop();
 }
 
+
+
 static SemaphoreHandle_t xTRXIntHandlerBinarySemaphore;
 
+void __attribute__((interrupt, no_auto_psv)) _INT4Interrupt(void) {
+
+    static BaseType_t xHigherPriorityTaskWoken;
+    _INT4IF = 0; // Clear interrupt flag
+
+    //IRQ cause must be read immediately
+    last_irq_cause = trxReadReg(RG_IRQ_STATUS); // Read and clear irq source
+
+    xSemaphoreGiveFromISR(xTRXIntHandlerBinarySemaphore);
+    if (xHigherPriorityTaskWoken != pdFALSE) {
+        // We can force a context switch here.  Context switching from an
+        // ISR uses port specific syntax.
+        taskYIELD();
+    }
+
+}
+
+//This task will be synchronous with INT4, which is connected to the AT86231 external interrupt pin
 static portTASK_FUNCTION(vTRXTask, pvParameters) {
     portTickType xLastWakeTime;
     xLastWakeTime = xTaskGetTickCount();

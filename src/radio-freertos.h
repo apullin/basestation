@@ -44,9 +44,6 @@
  * v.0.5
  */
 
-#ifndef __RADIO_H
-#define __RADIO_H
-
 
 #include "mac_packet.h"
 
@@ -159,5 +156,5 @@ unsigned int radioReturnPacket(MacPacket packet);
 
 void RadioStateMachine(unsigned int transition);
 
-#endif // __RADIO_H
+#endif // __RADIO_FREERTOS_H
 
