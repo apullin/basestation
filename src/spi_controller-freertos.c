@@ -140,15 +140,30 @@ void spicSetupChannel2(unsigned char cs, unsigned int spiCon1) {
     //spi_port_ch2_reset();               // Initialize status
 }
 
+void spic1SetCallback(unsigned char cs, SpicIrqHandler handler) {
+
+    int_handler_ch1[cs] = handler;
+
+}
+
+
+void spic2SetCallback(unsigned char cs, SpicIrqHandler handler) {
+
+    int_handler_ch2[cs] = handler;
+
+}
+
 int spic1BeginTransaction(unsigned char cs) {
     // TODO: Timeout?
+
+
 
     // TODO: generalize?
     if (cs > 0)
       // Only one CS line is supported
       return -1;
 
-    xSemaphoreTake(xSPI_CHAN1_Mutex, portMAX_DELAY);
+    xSemaphoreTake(xSPI_CHAN1_Semaphore, portMAX_DELAY);
 
     //CRITICAL_SECTION_START;
     // Reconfigure port
@@ -169,7 +184,7 @@ int spic2BeginTransaction(unsigned char cs) {
       // Two CS lines are supported
       return -1;
 
-    xSemaphoreTake(xSPI_CHAN2_Mutex, portMAX_DELAY);
+    xSemaphoreTake(xSPI_CHAN2_Semaphore, portMAX_DELAY);
 
     // Reconfigure port       ////// MPU INTERRUPTING HERE, over dfmemRead
     //CRITICAL_SECTION_START;
@@ -191,7 +206,7 @@ void spic1EndTransaction(void) {
 
     // Only one CS line
     SPI1_CS = SPI_CS_IDLE;  // Idle chip select after freeing since may cause irq
-    xSemaphoreGiveFromISR(xSPI_CHANNEL_1, &xHigherPriorityTaskWoken);
+    xSemaphoreGiveFromISR(xSPI_CHAN1_Semaphore, &xHigherPriorityTaskWoken);
 
     if (xHigherPriorityTaskWoken != pdFALSE) {
         // We can force a context switch here.  Context switching from an
@@ -209,7 +224,7 @@ void spic2EndTransaction(void) {
     if (port_cs_line[1] == 1)
       SPI2_CS2 = SPI_CS_IDLE;  // Idle chip select
 
-    xSemaphoreGiveFromISR(xSPI_CHANNEL_2, &xHigherPriorityTaskWoken);
+    xSemaphoreGiveFromISR(xSPI_CHAN2_Semaphore, &xHigherPriorityTaskWoken);
 
     if (xHigherPriorityTaskWoken != pdFALSE) {
         // We can force a context switch here.  Context switching from an
@@ -226,7 +241,7 @@ void spic1Reset(void) {
     SPIC1_DMAW_CONbits.CHEN = 0;
     SPI1STATbits.SPIROV = 0;        // Clear overwrite bit
     //spi_port_ch2_unlock();          // Release lock on channel
-    xSemaphoreGive(xSPI_CHANNEL_1);    //May return failure
+    xSemaphoreGive(xSPI_CHAN1_Semaphore);    //May return failure
 
 }
 
@@ -237,12 +252,14 @@ void spic2Reset(void) {
     SPIC2_DMAR_CONbits.CHEN = 0;    // Disable DMA module
     SPIC2_DMAW_CONbits.CHEN = 0;
     SPI2STATbits.SPIROV = 0;
-    xSemaphoreGive(xSPI_CHANNEL_2);    //May return failure
+    xSemaphoreGive(xSPI_CHAN2_Semaphore);    //May return failure
 
 }
 
 unsigned char spic1Transmit(unsigned char data) {
 
+    // Semaphors are not acquired here, since this will only be called between
+    // a spicxBeginTransaction & spicxEndTrasnaction
     unsigned char c;
     SPI1STATbits.SPIROV = 0;        // Clear overflow bit
     SPI1BUF = data;                 // Initiate SPI bus cycle by byte write
@@ -255,6 +272,8 @@ unsigned char spic1Transmit(unsigned char data) {
 
 unsigned char spic2Transmit(unsigned char data) {
 
+    // Semaphors are not acquired here, since this will only be called between
+    // a spicxBeginTransaction & spicxEndTrasnaction
     unsigned char c;
     SPI2STATbits.SPIROV = 0;        // Clear overflow bit
     SPI2BUF = data;                 // Initiate SPI bus cycle by byte write
@@ -268,6 +287,8 @@ unsigned char spic2Transmit(unsigned char data) {
 // Note that this is the same as transmit with data = 0x00
 unsigned char spic1Receive(void) {
 
+    // Semaphors are not acquired here, since this will only be called between
+    // a spicxBeginTransaction & spicxEndTrasnaction
     unsigned char c;
     SPI1STATbits.SPIROV = 0;        // Clear overflow bit
     SPI1BUF = 0x00;                 // Initiate SPI bus cycle by byte write
@@ -282,6 +303,8 @@ unsigned char spic1Receive(void) {
 // Note that this is the same as transmit with data = 0x00
 unsigned char spic2Receive(void) {
 
+    // Semaphors are not acquired here, since this will only be called between
+    // a spicxBeginTransaction & spicxEndTrasnaction
     unsigned char c;
     SPI2STATbits.SPIROV = 0;        // Clear overflow bit
     SPI2BUF = 0x00;                   // Initiate SPI bus cycle by byte write
@@ -396,6 +419,7 @@ unsigned int spic2ReadBuffer(unsigned int len, unsigned char *buff) {
 // TODO: Check for DMA error codes and return appropriate interrupt cause
 // ISR for DMA2 interrupt, currently DMAR for channel 1
 void __attribute__((interrupt, no_auto_psv)) _DMA2Interrupt(void) {
+    static BaseType_t xHigherPriorityTaskWoken;
 
     portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA2IF = 0;
@@ -405,7 +429,7 @@ void __attribute__((interrupt, no_auto_psv)) _DMA2Interrupt(void) {
         taskYIELD();
     }
     // Call registered callback function
-    //int_handler_ch1[port_cs_line[0]](SPIC_TRANS_SUCCESS);
+    int_handler_ch1[port_cs_line[0]](SPIC_TRANS_SUCCESS);
 
 }
 
@@ -438,7 +462,6 @@ void __attribute__((interrupt, no_auto_psv)) _DMA4Interrupt(void) {
 // ISR for DMA5 interrupt, currently DMAW for channel 2
 // Currently not used, though it may be useful for debugging
 void __attribute__((interrupt, no_auto_psv)) _DMA5Interrupt(void) {
-
     portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
     _DMA5IF = 0;
 

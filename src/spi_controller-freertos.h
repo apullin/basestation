@@ -58,8 +58,8 @@
  *  consume too much processor time.
  */
 
-#ifndef __SPI_CONTROLLER_FREERTOS_H
-#define __SPI_CONTROLLER_FREERTOS_H
+#ifndef __SPI_CONTROLLER_H
+#define __SPI_CONTROLLER_H
 
 
 #define SPIC_NUM_PORTS             (2)
@@ -79,7 +79,7 @@ typedef enum {
  * Interrupt handler type that must be registered to the driver.
  * The handler is called on interrupts with the source as the parameter.
  */
-//typedef void (*SpicIrqHandler) (unsigned int irq_cause);
+typedef void (*SpicIrqHandler) (unsigned int irq_cause);
 
 /**
  * Set up the SPI-DMA module for use.
@@ -95,7 +95,7 @@ void spicSetupChannel2(unsigned char cs, unsigned int spiCon1);
  *
  * @param handler Function pointer to interrupt handler
  */
-//void spic1SetCallback(unsigned char cs, SpicIrqHandler handler);
+void spic1SetCallback(unsigned char cs, SpicIrqHandler handler);
 
 /**
  * Begin a transaction on port 1.
@@ -169,7 +169,7 @@ unsigned int spic1ReadBuffer(unsigned int len, unsigned char *buff);
  *
  * @param handler Function pointer to interrupt handler
  */
-//void spic2SetCallback(unsigned char cs, SpicIrqHandler);
+void spic2SetCallback(unsigned char cs, SpicIrqHandler handler);
 
 /**
  * Begin a transaction on port 2.
@@ -239,6 +239,4 @@ unsigned int spic2MassTransmit(unsigned int len, unsigned char *buff, unsigned i
  */
 unsigned int spic2ReadBuffer(unsigned int len, unsigned char *buff);
 
-portBASE_TYPE spic2BlockingWaitDMAFinish(TickType_t timeout);
-
-#endif // __SPI_CONTROLLER_FREERTOS_H
+#endif // __SPI_CONTROLLER_H
