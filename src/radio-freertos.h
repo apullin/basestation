@@ -102,7 +102,7 @@ void vRadioHandlerStartTasks( unsigned portBASE_TYPE uxPriority);
 
 
 // Setup and initialization
-void radioInit(unsigned int tx_queue_length, unsigned int rx_queue_length);
+void radioSetup(unsigned int tx_queue_length, unsigned int rx_queue_length,  unsigned portBASE_TYPE uxPriority);
 
 // Configuration methods
 void radioConfigure(RadioConfiguration *conf);

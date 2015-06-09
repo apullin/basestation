@@ -111,7 +111,8 @@ static unsigned int radioSetStateOff(void);
 // =========== Public functions ===============================================
 
 // Initialize radio software and hardware
-void radioInit(unsigned int tx_queue_length, unsigned int rx_queue_length) {
+void radioSetup(unsigned int tx_queue_length, unsigned int rx_queue_length,
+        unsigned portBASE_TYPE uxPriority) {
 
     RadioConfiguration conf;
 
@@ -146,6 +147,8 @@ void radioInit(unsigned int tx_queue_length, unsigned int rx_queue_length) {
     is_ready = 1;
 
     radioSetStateRx();
+
+    vStartRadioTask(uxPriority);
 
 }
 
@@ -721,4 +724,17 @@ static portTASK_FUNCTION(vRadioRXTask, pvParameters) {
         taskYIELD();
         //TODO: Radio auto-recalibration
     }
+}
+
+portBASE_TYPE vStartRadioTask( unsigned portBASE_TYPE uxPriority){
+    portBASE_TYPE xStatus;
+
+    xStatus = xTaskCreate(vRadioTask, /* Pointer to the function that implements the task. */
+            (const char *) "Radio Task", /* Text name for the task. This is to facilitate debugging. */
+            240, /* Stack depth in words. */
+            NULL, /* We are not using the task parameter. */
+            uxPriority, /* This task will run at priority 1. */
+            &xRadioTaskHandle); /* We are not going to use the task handle. */
+
+    return xStatus;
 }

@@ -402,7 +402,7 @@ unsigned int spicReadBuffer(unsigned int channel, unsigned int len, QueueHandle_
     
 }
 
-/*
+
 unsigned int spic2ReadBuffer(unsigned int len, unsigned char *buff) {
 
     // Make sure requested length is in range
@@ -413,7 +413,7 @@ unsigned int spic2ReadBuffer(unsigned int len, unsigned char *buff) {
     memcpy(buff, spic2_rx_buff, len);   // Read DMA buffer contents into buffer
     return len;
 }
-*/
+
 
 // =========== Private Functions ==============================================
 // TODO: Check for DMA error codes and return appropriate interrupt cause
