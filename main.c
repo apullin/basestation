@@ -46,7 +46,7 @@
  *  <SAMPLE USAGE>
  */
 
-#include "p33Fxxxx.h"
+#include <xc.h>
 #include "generic_typedefs.h"
 #include "init_default.h"
 #include "utils.h"
@@ -54,7 +54,6 @@
 #include "uart.h"
 #include "mac_packet.h"
 #include "radio.h"
-#include "at86rf.h"
 #include "payload.h"
 #include <stdio.h>
 #include "xbee_constants.h"
@@ -85,21 +84,18 @@ void init(void);
 //#define MY_CHAN             0x16
 
 
-#define LED_RED             LED_0
-#define LED_YLW1            LED_1
-#define LED_YLW2            LED_2
-#define LED_BLU             LED_3
+
 
 int main(void) {
     init();
 
     while(1) {
-        if (!radioIsRxQueueEmpty())
+        if (!radioRxQueueEmpty())
         {
             xbeeHandleRx();
             LED_BLU = ~LED_BLU;
         }
-        if (!radioIsTxQueueEmpty())
+        if (!radioTxQueueEmpty())
         {
             macSendPacket();
             LED_RED = ~LED_RED;
@@ -138,7 +134,7 @@ void init(void)
     radioSetChannel(MY_CHAN); //Set to my channel
 
     //Set this if the electronics for Ant diversity are installed
-    atSetAntDiversity(1);
+    //atSetAntDiversity(1);
 }
 
 //read data from the UART, and call the proper function based on the Xbee code

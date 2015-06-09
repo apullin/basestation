@@ -46,7 +46,7 @@
  *  <SAMPLE USAGE>
  */
 
-#include "p33Fxxxx.h"
+#include <xc.h>
 #include "generic_typedefs.h"
 #include "init_default.h"
 #include "utils.h"
@@ -54,13 +54,15 @@
 #include "uart.h"
 #include "mac_packet.h"
 #include "radio.h"
-#include "at86rf.h"
+#include "at86rf231_driver.h"
 #include "payload.h"
 #include <stdio.h>
 #include "xbee_constants.h"
 #include "xbee_handler.h"
 //#include "lcd.h"
 
+//This function will take Xbee API formatted packets from UART and send them over the radio
+//Todo: It is apalling that this was written to use Payload for both the UART data and the radio "Payload". Two different structes should be defined. AP 6-9-2015
 void xbeeHandleTx(Payload uart_pld){
 
     MacPacket tx_packet;
@@ -102,12 +104,15 @@ void xbeeHandleAt(Payload rx_pld)
 
     //This should really be some sort of dynamic queue to be generalized
     unsigned char bytes[10];
-
-
+    
+    RadioAddress radioaddr;
+    
     //unsigned short int command;
     WordVal command;
     WordVal data;
 
+    radioGetAddress(&radioaddr);
+    
     length = payGetPayloadLength(rx_pld);
     frame = rx_pld->pld_data[0];
 
@@ -132,7 +137,8 @@ void xbeeHandleAt(Payload rx_pld)
             }
             if (frame != 0)
             {
-                bytes[0] = radioGetChannel();
+                //bytes[0] = radioGetChannel();
+                bytes[0] = radioaddr.channel;
                 xbeeHandleATR(frame, command, bytes, 1);
             }
             break;
@@ -141,11 +147,13 @@ void xbeeHandleAt(Payload rx_pld)
             {
                 data.byte.HB = rx_pld->pld_data[3];
                 data.byte.LB = rx_pld->pld_data[4];
-                radioSetPanID(data);
+                //radioSetPanID(data);
+                radioSetSrcPanID(data);
             }
             if (frame != 0)
             {
-                data = radioGetPanID();
+                //data = radioGetPanID();
+                data = radioaddr.pan_id;
                 bytes[0] = data.byte.HB;
                 bytes[1] = data.byte.LB;
 
@@ -161,7 +169,8 @@ void xbeeHandleAt(Payload rx_pld)
             }
             if (frame != 0)
             {
-                data = radioGetSrcAddr();
+                //data = radioGetSrcAddr();
+                data = radioaddr.address;
                 bytes[0] = data.byte.HB;
                 bytes[1] = data.byte.LB;
 
@@ -172,14 +181,15 @@ void xbeeHandleAt(Payload rx_pld)
             if (frame != 0)
             {
                 bytes[0] = 0;
-                bytes[1] = phyGetLastAckd();;
+                bytes[1] = trxGetLastACKd();
 
                 xbeeHandleATR(frame, command, bytes, 2);
             }
             break;
         case AT_SNIFFER:
             if (length != 3)
-                atSetPromMode(rx_pld->pld_data[3]);  //Put radio in sniffer mode
+                //Promiscuous mode was removed from radio driver, needs to be added back in. AP 6-9-2015
+                //atSetPromMode(rx_pld->pld_data[3]);  //Put radio in sniffer mode
             break;
     }
 }
@@ -197,7 +207,7 @@ void xbeeHandleRx()
     frame_header[RX_SRC_ADR_HB_POS] = rx_packet->src_addr.byte.HB;
     frame_header[RX_SRC_ADR_LB_POS] = rx_packet->src_addr.byte.LB;
 
-    frame_header[RX_RSSI_POS] = phyReadRSSI();
+    frame_header[RX_RSSI_POS] = trxReadRSSI();
     frame_header[RX_OPTIONS_POS] = 0x00;
 
     CRITICAL_SECTION_START
