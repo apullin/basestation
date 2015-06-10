@@ -47,6 +47,8 @@
  */
 
 #include <xc.h>
+#include <settings.h>
+
 #include "generic_typedefs.h"
 #include "init_default.h"
 #include "utils.h"
@@ -58,7 +60,6 @@
 #include <stdio.h>
 #include "xbee_constants.h"
 #include "xbee_handler.h"
-//#include "lcd.h"
 
 // _FOSCSEL(FNOSC_PRIPLL);
 // _FOSC(FCKSM_CSDCMD & OSCIOFNC_OFF & POSCMD_XT);
@@ -75,16 +76,13 @@ void init(void);
 //#define MY_CHAN             0x13
 
 //Motile Release
-#define SRC_ADDR	    0x3001
-#define SRC_PAN_ID	    0x3000
-#define MY_CHAN             0x0e
+#define BASE_SRC_ADDR       0x3001
+#define BASE_PAN_ID         0x3000
+#define BASE_RADIO_CHANNEL  0x0e
 
 //#define SRC_ADDR	    0x2000
 //#define SRC_PAN_ID	    0x2000
 //#define MY_CHAN             0x16
-
-
-
 
 int main(void) {
     init();
@@ -95,20 +93,21 @@ int main(void) {
             xbeeHandleRx();
             LED_BLU = ~LED_BLU;
         }
-        if (!radioTxQueueEmpty())
-        {
-            macSendPacket();
-            LED_RED = ~LED_RED;
-        }
+        //if (!radioTxQueueEmpty())
+        //{
+        //    macSendPacket();
+        //    LED_RED = ~LED_RED;
+        //}
         
+        radioProcess(); //This will process outgoing packets
     }
 }
 
 void init(void)
 {
     int i;
-    volatile WordVal src_addr = {SRC_ADDR};
-    volatile WordVal src_pan_id = {SRC_PAN_ID};
+    volatile WordVal src_addr = {BASE_SRC_ADDR};
+    volatile WordVal src_pan_id = {BASE_PAN_ID};
 
     SetupClock();
     SwitchClocks();
@@ -130,8 +129,9 @@ void init(void)
     SetupInterrupts();
     EnableIntU1TX;
     EnableIntU1RX;
-    radioInit(src_addr, src_pan_id, 150, 150);
-    radioSetChannel(MY_CHAN); //Set to my channel
+    //radioInit(src_addr, src_pan_id, 150, 150);
+    radioInit(RADIO_TXPQ_MAX_SIZE, RADIO_RXPQ_MAX_SIZE);
+    radioSetChannel(BASE_RADIO_CHANNEL); //Set to my channel
 
     //Set this if the electronics for Ant diversity are installed
     //atSetAntDiversity(1);

@@ -8,7 +8,6 @@
         <itemPath>../imageproc-lib/at86rf231.h</itemPath>
         <itemPath>../imageproc-lib/generic_typedefs.h</itemPath>
         <itemPath>../imageproc-lib/init_default.h</itemPath>
-        <itemPath>../imageproc-lib/ipspi1.h</itemPath>
         <itemPath>../imageproc-lib/packet_queue.h</itemPath>
         <itemPath>../imageproc-lib/payload.h</itemPath>
         <itemPath>../imageproc-lib/queue.h</itemPath>
@@ -16,6 +15,14 @@
         <itemPath>../imageproc-lib/utils.h</itemPath>
         <itemPath>../imageproc-lib/at86rf231_driver.h</itemPath>
         <itemPath>../imageproc-lib/bsp-basestation.h</itemPath>
+        <itemPath>../imageproc-lib/sclock.h</itemPath>
+        <itemPath>../imageproc-lib/carray.h</itemPath>
+        <itemPath>../imageproc-lib/spi_controller.h</itemPath>
+        <itemPath>../imageproc-lib/mac_packet.h</itemPath>
+        <itemPath>../imageproc-lib/ppool.h</itemPath>
+      </logicalFolder>
+      <logicalFolder name="f1" displayName="imageproc-settings" projectFiles="true">
+        <itemPath>../imageproc-settings/settings.h</itemPath>
       </logicalFolder>
       <itemPath>init.h</itemPath>
       <itemPath>xbee_constants.h</itemPath>
@@ -25,7 +32,6 @@
                    displayName="Source Files"
                    projectFiles="true">
       <logicalFolder name="shared" displayName="imageproc-lib" projectFiles="true">
-        <itemPath>../imageproc-lib/ipspi1.c</itemPath>
         <itemPath>../imageproc-lib/init_default.c</itemPath>
         <itemPath>../imageproc-lib/payload.c</itemPath>
         <itemPath>../imageproc-lib/packet_queue.c</itemPath>
@@ -33,6 +39,11 @@
         <itemPath>../imageproc-lib/queue.c</itemPath>
         <itemPath>../imageproc-lib/delay.s</itemPath>
         <itemPath>../imageproc-lib/at86rf231_driver.c</itemPath>
+        <itemPath>../imageproc-lib/sclock.c</itemPath>
+        <itemPath>../imageproc-lib/carray.c</itemPath>
+        <itemPath>../imageproc-lib/spi_controller.c</itemPath>
+        <itemPath>../imageproc-lib/mac_packet.c</itemPath>
+        <itemPath>../imageproc-lib/ppool.c</itemPath>
       </logicalFolder>
       <itemPath>init.c</itemPath>
       <itemPath>main.c</itemPath>
@@ -48,6 +59,7 @@
   <sourceRootList>
     <Elem>.</Elem>
     <Elem>../imageproc-lib</Elem>
+    <Elem>../imageproc-settings</Elem>
   </sourceRootList>
   <projectmakefile>Makefile</projectmakefile>
   <confs>
@@ -98,7 +110,8 @@
         <property key="enable-short-double" value="true"/>
         <property key="enable-symbols" value="true"/>
         <property key="enable-unroll-loops" value="false"/>
-        <property key="extra-include-directories" value=".;..\imageproc-lib"/>
+        <property key="extra-include-directories"
+                  value=".;..\imageproc-lib;..\imageproc-settings"/>
         <property key="isolate-each-function" value="false"/>
         <property key="keep-inline" value="false"/>
         <property key="oXC16gcc-align-arr" value="false"/>

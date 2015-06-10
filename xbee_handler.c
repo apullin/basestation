@@ -87,7 +87,9 @@ void xbeeHandleTx(Payload uart_pld){
             &(uart_pld->pld_data[RX_DATA_OFFSET]));
 
     //Place packet in radio queue for sending
-    tx_packet = macCreatePacket();
+    //tx_packet = macCreatePacket();
+    
+    tx_packet = radioRequestPacket(rx_pld->data_length); 
     tx_packet->payload = rx_pld;
     tx_packet->payload_length = payGetPayloadLength(rx_pld);//rx_pld_len.byte.LB - (RX_FRAME_OFFSET - RX_DATA_OFFSET);
     //tx_packet->dest_pan_id = src_pan_id; //Already set when macCreatePacket is called.
@@ -148,12 +150,12 @@ void xbeeHandleAt(Payload rx_pld)
                 data.byte.HB = rx_pld->pld_data[3];
                 data.byte.LB = rx_pld->pld_data[4];
                 //radioSetPanID(data);
-                radioSetSrcPanID(data);
+                radioSetSrcPanID(data.val);
             }
             if (frame != 0)
             {
                 //data = radioGetPanID();
-                data = radioaddr.pan_id;
+                data.val = radioaddr.pan_id;
                 bytes[0] = data.byte.HB;
                 bytes[1] = data.byte.LB;
 
@@ -165,12 +167,12 @@ void xbeeHandleAt(Payload rx_pld)
             {
                 data.byte.HB = rx_pld->pld_data[3];
                 data.byte.LB = rx_pld->pld_data[4];
-                radioSetSrcAddr(data);
+                radioSetSrcAddr(data.val);
             }
             if (frame != 0)
             {
                 //data = radioGetSrcAddr();
-                data = radioaddr.address;
+                data.val = radioaddr.address;
                 bytes[0] = data.byte.HB;
                 bytes[1] = data.byte.LB;
 
